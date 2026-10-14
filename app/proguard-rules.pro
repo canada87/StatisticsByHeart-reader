@@ -11,3 +11,5 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**
+# HealthTypeSpec resolves the time accessors of Health Connect record classes by name (reflection).
+-keep class androidx.health.connect.client.records.** { *; }

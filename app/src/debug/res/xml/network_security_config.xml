@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG BUILD ONLY. Development fallback of PROJECT_GUIDE §4 while HTTPS is not ready: cleartext is allowed
+  only for the specific tailnet host of the homelab VM, never for the rest of the network.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">100.84.182.8</domain>
+    </domain-config>
+</network-security-config>
