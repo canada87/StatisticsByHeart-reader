@@ -5,7 +5,7 @@ telefono e li **invia al servizio self-hosted "writer"** (FastAPI + PostgreSQL, 
 Non è una dashboard: è un intermediario con una UI di stato in stile HUD / sci-fi.
 
 - `applicationId` **`app.sbh.reader`** · nome visualizzato **StatisticsByHeart** · `minSdk 28` · `targetSdk 36` · `compileSdk 37`
-- Distribuzione: **APK sideload** firmato con un keystore personale (nessun Play Store).
+- Distribuzione: **APK sideload** firmato con la chiave personale, pubblicato da GitHub Actions in *Releases* e installato/aggiornato dal telefono con **Obtainium** (nessun Play Store, nessun cavo USB).
 - Tutte le decisioni di progetto stanno in [`../PROJECT_GUIDE.md`](../PROJECT_GUIDE.md); il contratto API è nel repo writer
   (`../StatisticsByHeart-writer/docs/api-contract.md`, v1.0.0) ed è la fonte di verità per i payload.
 - Design system (skill `ui-ux-pro-max`): [`design-system/statisticsbyheart-reader/MASTER.md`](design-system/statisticsbyheart-reader/MASTER.md).
@@ -24,9 +24,8 @@ Non è una dashboard: è un intermediario con una UI di stato in stile HUD / sci
 ## Requisiti
 
 - Windows/macOS/Linux con **Android Studio** (testato: Android Studio 2026.2 «AI‑262», con il suo JBR/JDK 25) e Android SDK 37.
-- `adb` nel `PATH` (platform-tools dell'SDK) e **debug USB** attivo sul telefono.
-- Per il test reale: un telefono con Health Connect (nel sistema da Android 14). **L'emulatore gestisce male Health Connect**: usalo
-  solo per vedere la UI.
+- Un telefono con Health Connect (nel sistema da Android 14) e **Obtainium** per installare l'app (vedi sotto). **Non serve `adb` né il debug USB.**
+  L'emulatore gestisce male Health Connect: usalo solo per vedere la UI.
 
 ## Build
 
@@ -55,42 +54,169 @@ echo "sdk.dir=C:/Users/<tu>/AppData/Local/Android/Sdk" > local.properties   # sl
 >
 > (oppure `-Psbh.buildRoot=...` a riga di comando). L'APK finisce in `<buildRoot>/StatisticsByHeart-reader/app/outputs/apk/debug/`.
 
-## Installazione sul telefono
+## Installare e aggiornare l'app (GitHub Releases + Obtainium)
 
-### Debug (sviluppo)
+**Niente cavo e niente debug USB.** L'app si installa e si aggiorna **solo** da GitHub:
+ogni volta che crei un *tag* di versione (`v0.1.0`, `v0.1.1`, …) GitHub compila l'app, la firma con la **tua chiave personale**,
+pubblica l'APK in *Releases*, e **Obtainium** sul telefono lo scarica e lo installa (e ti avvisa degli aggiornamenti).
 
-```bash
-adb devices                                 # il telefono deve comparire come "device" (non "unauthorized")
-adb install -r app-debug.apk
+```
+ tuo PC ──git push tag──► GitHub Actions ──► Release con APK firmato ──► Obtainium (telefono) ──► app installata/aggiornata
 ```
 
-Sul **Xiaomi / HyperOS** l'installazione via USB è bloccata finché non attivi, in *Impostazioni → Informazioni sul telefono →
-tocca 7 volte «Versione OS» → Impostazioni aggiuntive → Opzioni sviluppatore*: **Debug USB**, **Installa tramite USB** e
-**Debug USB (impostazioni di sicurezza)**. Senza questi `adb install` risponde `INSTALL_FAILED_USER_RESTRICTED`.
+Cosa serve, una volta sola: **A** la chiave, **B** i secret su GitHub, **C** Obtainium sul telefono (**D**, **E**).
+Poi per ogni nuova versione basta il passo **F**.
+
+> ⚠️ **La chiave di firma è insostituibile.** Android accetta un aggiornamento solo se è firmato con la *stessa* chiave
+> dell'app già installata. Se la perdi non puoi più pubblicare aggiornamenti: dovresti disinstallare l'app e reinstallarla da zero,
+> e Health Connect rilegge solo i 30 giorni precedenti al nuovo primo permesso. Fai subito le copie di sicurezza del passo A.
+
+### A · Creare la chiave di firma (una sola volta)
+
+Apri **PowerShell** (non serve essere amministratore). Il file della chiave va **fuori dal repo e fuori da OneDrive**:
+la cartella del tuo utente, ad esempio `C:\Users\<tuo-nome>\sbh-keys`, va bene.
+
+```powershell
+# 1) cartella per la chiave (fuori dal repo, fuori da OneDrive)
+New-Item -ItemType Directory -Force "$env:USERPROFILE\sbh-keys"
+
+# 2) crea la chiave (keytool è incluso in Android Studio)
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v `
+  -keystore "$env:USERPROFILE\sbh-keys\sbh-release.jks" -alias sbh `
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+`keytool` ti chiede una **password** (scegline una lunga; se chiede anche la «password della chiave» puoi ripetere la stessa) e
+qualche dato (nome, ecc.: puoi scrivere quello che vuoi, non viene mostrato a nessuno). Alla fine hai il file `sbh-release.jks`.
+Segna questi **quattro valori**, ti serviranno nel passo B:
+
+| Cosa | Valore |
+|---|---|
+| file | `C:\Users\<tuo-nome>\sbh-keys\sbh-release.jks` |
+| password del keystore | quella scelta sopra |
+| alias | `sbh` |
+| password della chiave | quella scelta sopra (di solito la stessa) |
+
+**Fai subito due copie di sicurezza** (senza, un PC rotto = niente più aggiornamenti):
+
+1. **Password manager**: crea una voce «StatisticsByHeart – chiave di firma», allega il file `sbh-release.jks` e scrivi password e alias.
+2. **NAS**: copia `sbh-release.jks` in una cartella del NAS con permessi ristretti (contiene la chiave privata: non nella stessa cartella dei dump del database).
+
+*(Facoltativo)* per riconoscere la chiave in futuro, annota la sua impronta:
+`& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore "$env:USERPROFILE\sbh-keys\sbh-release.jks"` → riga `SHA256:`.
+La stessa impronta compare nel log di ogni release su GitHub (passo «Name, verify and checksum the APK»): se cambia, hai usato un'altra chiave.
+
+Mai committare la chiave: `*.jks`, `*.keystore` e `keystore.properties` sono già in `.gitignore`.
+
+### B · Creare i secret su GitHub (una sola volta)
+
+1. In PowerShell, trasforma il file della chiave in testo e **copialo negli appunti**:
+
+   ```powershell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\sbh-keys\sbh-release.jks")) | Set-Clipboard
+   ```
+
+2. Su GitHub apri il repo `StatisticsByHeart-reader` → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+3. Crea questi **4 secret**, con questi nomi **esatti** (maiuscole comprese):
+
+   | Nome del secret | Cosa incollare |
+   |---|---|
+   | `SBH_KEYSTORE_BASE64` | il testo copiato al punto 1 (lunghissimo, su una riga) |
+   | `SBH_KEYSTORE_PASSWORD` | la password del keystore |
+   | `SBH_KEY_ALIAS` | `sbh` |
+   | `SBH_KEY_PASSWORD` | la password della chiave |
+
+I secret non si possono rileggere dopo averli salvati: se sbagli, ricrea quello sbagliato. Tieni attiva l'autenticazione a due fattori
+sul tuo account GitHub: chi può scrivere nel repo può far partire una release firmata con la tua chiave.
+
+### C · Pubblicare una release
+
+La prima volta il codice deve essere già su GitHub (`git push origin main`). Poi, dalla cartella del repo:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+1. Su GitHub, scheda **Actions**: parte il workflow **Release** (circa 5–10 minuti: test, build, firma).
+2. Quando è verde, nella scheda **Releases** trovi `StatisticsByHeart-v0.1.0.apk` (e il suo `.sha256`).
+3. Per la versione successiva usa un numero più alto: `v0.1.1`, `v0.2.0`, `v1.0.0`…
+
+Come sono calcolati i numeri (sono decisi da `app/build.gradle.kts`, non a mano):
+
+- **versionName** = il tag senza la `v` (`v0.1.0` → `0.1.0`).
+- **versionCode** = `MAJOR×10000 + MINOR×100 + PATCH` (`0.1.0` → 100, `0.1.1` → 101, `0.2.0` → 200, `1.0.0` → 10000).
+  Cresce sempre quando sale la versione, ed è ciò che permette ad Android di accettare l'aggiornamento (non serve contare nulla a mano).
+  Limiti: `MINOR` e `PATCH` devono essere minori di 100 e non si usano suffissi tipo `-rc1`; il workflow rifiuta i tag che non sono `vX.Y.Z`.
+- Se una release fallisce o è sbagliata: cancella tag e release e ripeti, mai riusare un numero già installato sul telefono:
+  `git push --delete origin v0.1.0` e `git tag -d v0.1.0` (poi elimina la release dalla pagina Releases).
+
+Il workflow **CI** (`.github/workflows/ci.yml`) gira a ogni push su `main` e a ogni pull request: solo build e test, senza firma e senza segreti.
+
+### D · Configurare Obtainium sul telefono
+
+1. Installa **Obtainium** (<https://github.com/ImranR98/Obtainium>, dalla pagina Releases o da F-Droid).
+2. In Obtainium: **Aggiungi app** → incolla l'URL del repo: `https://github.com/canada87/StatisticsByHeart-reader` → **Aggiungi**.
+   (Facoltativo, nelle opzioni dell'app: filtro APK `StatisticsByHeart-.*\.apk$`, così sceglie sempre e solo l'APK.)
+3. Tocca **Installa**. Da qui in poi Obtainium controlla da solo se c'è una nuova release e ti propone l'aggiornamento.
+
+**Repo pubblico o privato? Scegli tu.**
+
+- **Repo pubblico**: Obtainium funziona subito, senza altro. Il repo non contiene segreti né dati (la chiave e i token non sono mai nel codice,
+  i test usano dati finti), ma chiunque può leggere codice, documentazione e il nome dei tuoi server di esempio.
+- **Repo privato**: serve un **token GitHub a sola lettura**, da inserire in Obtainium (solo sul telefono):
+  1. GitHub → foto profilo → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+  2. *Repository access*: **Only select repositories** → `StatisticsByHeart-reader`.
+  3. *Permissions* → *Repository permissions* → **Contents: Read-only** (Metadata read-only viene aggiunto da solo). Niente altro.
+  4. Scegli una scadenza (anche 1 anno: poi va rinnovato e riscritto in Obtainium), **Generate token**, copialo subito.
+  5. Obtainium → **Impostazioni** → **GitHub personal access token** → incolla il token.
+
+### E · Impostazioni del telefono (Xiaomi / HyperOS)
+
+1. **Disattiva** (in *Impostazioni → Informazioni sul telefono → … → Opzioni sviluppatore*): **Debug USB**, **Installa tramite USB**
+   e **Debug USB (impostazioni di sicurezza)**. Non servono più.
+2. **Concedi a Obtainium** il permesso di installare app sconosciute: *Impostazioni → App → Autorizzazioni → Installa app sconosciute → Obtainium → Consenti*
+   (la prima volta Android o HyperOS te lo chiedono da soli quando tocchi «Installa»).
+3. **Disinstalla la build debug attuale** di StatisticsByHeart (tieni premuta l'icona → *Disinstalla*): ha una firma diversa, quindi la versione
+   di Obtainium non potrebbe installarsi sopra. La build debug è vuota (nessun permesso, nessun dato), non si perde nulla.
+4. Se HyperOS mostra una schermata di «controllo sicurezza» all'installazione, scegli *Installa comunque* (l'APK è firmato da te).
+5. Dopo la prima installazione concedi i permessi di Health Connect (**storico incluso, prima del primo backfill**) e segui la *Guida HyperOS* dell'app.
+
+### F · Ogni nuova versione (riepilogo)
+
+```powershell
+git push origin main          # il codice
+git tag v0.1.1                # un numero più alto dell'ultimo
+git push origin v0.1.1        # parte la release
+```
+
+Aspetta il workflow verde, poi in Obtainium tocca **Aggiorna** (o aspetta la notifica). I permessi e i dati dell'app restano, perché la chiave è la stessa.
+
+### Build firmata in locale (facoltativa)
+
+Non serve per l'uso normale. Se vuoi comunque costruire l'APK firmato sul tuo PC crea `keystore.properties` nella radice del repo
+(ignorato da git, **non committarlo**):
+
+```properties
+storeFile=C:/Users/<tuo-nome>/sbh-keys/sbh-release.jks
+storePassword=...
+keyAlias=sbh
+keyPassword=...
+```
+
+e lancia `./gradlew :app:assembleRelease` (con `SBH_VERSION_NAME=0.1.0` nell'ambiente se vuoi un numero preciso). In alternativa le stesse
+informazioni possono arrivare dalle variabili d'ambiente `SBH_KEYSTORE_FILE`, `SBH_KEYSTORE_PASSWORD`, `SBH_KEY_ALIAS`, `SBH_KEY_PASSWORD`
+(è ciò che usa la CI). **Senza chiave la build release si ferma con un messaggio chiaro**: non esiste nessun ripiego silenzioso sulla chiave debug.
+Gli APK firmati con una chiave diversa da quella di GitHub non si possono installare sopra quelli di Obtainium.
+
+> ⚠️ **Non disinstallare l'app** una volta concessi i permessi: Health Connect rende leggibili solo i 30 giorni precedenti al *primo* permesso
+> (se non c'è il permesso «storico») e la finestra riparte a ogni reinstallazione. Aggiorna sempre dalla stessa chiave (Obtainium).
+
+### Sviluppo (facoltativo)
+
+Per provare la UI senza telefono: emulatore Android Studio (`./gradlew :app:assembleDebug`, APK in `app/build/outputs/apk/debug/`);
+Health Connect sull'emulatore funziona male, quindi l'inventario e la sync vanno provati sul telefono vero, installando con Obtainium.
 La build debug accetta HTTP in chiaro **solo** verso `100.84.182.8` (host tailnet della VM, `app/src/debug/res/xml/network_security_config.xml`).
-
-### Release firmata (uso quotidiano)
-
-1. Crea il keystore **personale** (una sola volta, conservalo e fanne una copia: serve per gli aggiornamenti):
-
-   ```bash
-   keytool -genkeypair -v -keystore sbh-release.jks -alias sbh -keyalg RSA -keysize 4096 -validity 10000
-   ```
-
-2. Crea `keystore.properties` nella radice del repo (è in `.gitignore`, come `*.jks`; **non committarli mai**):
-
-   ```properties
-   storeFile=sbh-release.jks
-   storePassword=...
-   keyAlias=sbh
-   keyPassword=...
-   ```
-
-3. `./gradlew :app:assembleRelease` → `app-release.apk` (R8 attivo, solo HTTPS). Installalo con `adb install -r` oppure copiandolo sul telefono.
-
-> ⚠️ **Non disinstallare mai l'app** una volta concessi i permessi: Health Connect rende leggibili solo i 30 giorni precedenti al
-> *primo* permesso (se non c'è il permesso «storico»), e la finestra riparte a ogni reinstallazione. Per aggiornare usa sempre
-> `adb install -r` con lo **stesso keystore**. Concedi il permesso «storico» **prima** del primo backfill.
 
 ## Primo avvio (checklist)
 
