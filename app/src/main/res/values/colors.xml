@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- System-level copies of the design tokens (launcher icon, window background). In-app colours live in ui/theme/Tokens.kt. -->
+<resources>
+    <color name="sbh_bg">#0B0B10</color>
+    <color name="sbh_accent_glow">#22D3EE</color>
+</resources>

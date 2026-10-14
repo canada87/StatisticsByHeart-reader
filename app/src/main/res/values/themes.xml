@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark-only (sci-fi HUD has no light theme, PROJECT_GUIDE §8.1). Bars are transparent: edge-to-edge. -->
+    <style name="Theme.Sbh" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/sbh_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
+</resources>
