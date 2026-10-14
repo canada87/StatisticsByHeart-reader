@@ -1,1 +1,12 @@
 .idea/
+*.iml
+.gradle/
+build/
+local.properties
+.kotlin/
+captures/
+.cxx/
+# signing material: never commit
+keystore.properties
+*.jks
+*.keystore
