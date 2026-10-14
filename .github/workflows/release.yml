@@ -68,8 +68,11 @@ jobs:
           out="StatisticsByHeart-${GITHUB_REF_NAME}.apk"
           cp "$apk" "$out"
           apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
-          "$apksigner" verify --print-certs "$out" | grep -E "Signer #1 certificate SHA-256|Verifies"
-          echo "versionName: $("$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)" dump badging "$out" | grep -o "versionName='[^']*'")"
+          # verify exits non-zero on a bad signature; print its output unfiltered (the line format changes between
+          # build-tools versions, and a grep with no match would fail the step silently)
+          "$apksigner" verify --print-certs "$out"
+          aapt2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
+          "$aapt2" dump badging "$out" | head -1
           sha256sum "$out" > "$out.sha256"
           echo "APK_FILE=$out" >> "$GITHUB_ENV"
 
