@@ -64,10 +64,10 @@ fun DataScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { ScreenTitle(stringResource(R.string.nav_data)) }
-        item { TodayPanel(state.today, state.hcAvailable) }
+        item(key = "title") { ScreenTitle(stringResource(R.string.nav_data)) }
+        item(key = "today") { TodayPanel(state.today, state.hcAvailable) }
         if (missing.isNotEmpty() && state.hcAvailable) {
-            item {
+            item(key = "perm") {
                 StatusBanner(
                     BannerKind.WARN,
                     stringResource(R.string.issue_permissions_title),
@@ -77,7 +77,7 @@ fun DataScreen(
                 )
             }
         }
-        item {
+        item(key = "inventory") {
             HudButton(
                 stringResource(R.string.action_open_inventory),
                 onOpenInventory,
@@ -86,8 +86,8 @@ fun DataScreen(
                 icon = R.drawable.ic_list_magnifying_glass,
             )
         }
-        item { TypeSection(stringResource(R.string.data_tier1), state.rows.filter { it.spec.tier == 1 }, vm) }
-        item { TypeSection(stringResource(R.string.data_tier2), state.rows.filter { it.spec.tier == 2 }, vm) }
+        item(key = "tier1") { TypeSection(stringResource(R.string.data_tier1), state.rows.filter { it.spec.tier == 1 }, vm) }
+        item(key = "tier2") { TypeSection(stringResource(R.string.data_tier2), state.rows.filter { it.spec.tier == 2 }, vm) }
     }
 }
 

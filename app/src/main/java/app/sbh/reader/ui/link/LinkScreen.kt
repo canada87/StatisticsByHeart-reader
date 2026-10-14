@@ -72,13 +72,13 @@ fun LinkScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { ScreenTitle(stringResource(R.string.nav_link)) }
-        item {
+        item(key = "title") { ScreenTitle(stringResource(R.string.nav_link)) }
+        item(key = "gauge") {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 StatusGauge(state.gauge, label, sublabel, description)
             }
         }
-        item {
+        item(key = "status") {
             HudPanel {
                 SectionLabel(stringResource(R.string.link_status_title))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -100,7 +100,7 @@ fun LinkScreen(
                 }
             }
         }
-        item {
+        item(key = "sync") {
             HudButton(
                 text = stringResource(R.string.action_sync_now),
                 onClick = main::syncNow,

@@ -95,8 +95,11 @@ class LinkViewModel(
                         issues += Issue(IssueKind.PERMISSIONS, BannerKind.WARN)
                         blocking = true
                     }
-                    if (hc.historyAvailable && !hc.historyGranted) issues += Issue(IssueKind.HISTORY, BannerKind.INFO)
-                    if (hc.backgroundAvailable && !hc.backgroundGranted) issues += Issue(IssueKind.BACKGROUND, BannerKind.WARN)
+                    // One request covers types + history + background: do not stack three identical cards.
+                    if (!blocking) {
+                        if (hc.historyAvailable && !hc.historyGranted) issues += Issue(IssueKind.HISTORY, BannerKind.INFO)
+                        if (hc.backgroundAvailable && !hc.backgroundGranted) issues += Issue(IssueKind.BACKGROUND, BannerKind.WARN)
+                    }
                 }
             }
         }

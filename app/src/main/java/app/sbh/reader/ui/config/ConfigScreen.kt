@@ -68,10 +68,10 @@ fun ConfigScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { ScreenTitle(stringResource(R.string.nav_config)) }
+        item(key = "title") { ScreenTitle(stringResource(R.string.nav_config)) }
 
         // ---- server ----
-        item {
+        item(key = "server") {
             HudPanel {
                 SectionLabel(stringResource(R.string.config_server))
                 HudTextField(
@@ -130,7 +130,7 @@ fun ConfigScreen(
         }
 
         // ---- sync ----
-        item {
+        item(key = "sync") {
             HudPanel {
                 SectionLabel(stringResource(R.string.config_sync))
                 Text(stringResource(R.string.config_interval), style = MaterialTheme.typography.bodyMedium, color = c.fg)
@@ -172,7 +172,7 @@ fun ConfigScreen(
         }
 
         // ---- appearance ----
-        item {
+        item(key = "a11y") {
             HudPanel {
                 SectionLabel(stringResource(R.string.config_accessibility))
                 HudSwitchRow(
@@ -185,7 +185,7 @@ fun ConfigScreen(
         }
 
         // ---- health connect ----
-        item {
+        item(key = "hc") {
             HudPanel {
                 SectionLabel(stringResource(R.string.config_hc))
                 Text(stringResource(R.string.config_hc_body), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
@@ -214,7 +214,7 @@ fun ConfigScreen(
         }
 
         // ---- history ----
-        item {
+        item(key = "history") {
             HudPanel(accent = c.danger) {
                 SectionLabel(stringResource(R.string.config_history), color = c.dangerText)
                 Text(stringResource(R.string.config_backfill_body), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
@@ -228,7 +228,7 @@ fun ConfigScreen(
             }
         }
 
-        item {
+        item(key = "version") {
             Text(
                 stringResource(R.string.config_version, BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.labelSmall,

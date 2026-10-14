@@ -64,12 +64,12 @@ fun InventoryScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { PushedHeader(stringResource(R.string.inventory_title), onBack) }
-        item {
+        item(key = "header") { PushedHeader(stringResource(R.string.inventory_title), onBack) }
+        item(key = "intro") {
             Text(stringResource(R.string.inventory_intro), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
         }
         if (state.notGranted.isNotEmpty()) {
-            item {
+            item(key = "ungranted") {
                 StatusBanner(
                     BannerKind.INFO,
                     stringResource(R.string.inventory_ungranted_title, state.notGranted.size),
@@ -79,7 +79,7 @@ fun InventoryScreen(
                 )
             }
         }
-        item {
+        item(key = "action") {
             if (scanning != null) {
                 HudPanel {
                     val label = stringResource(HealthTypes.byId.getValue(scanning.currentTypeId).labelRes)
@@ -110,7 +110,7 @@ fun InventoryScreen(
             }
         }
         if (state.results.isNotEmpty() && scanning == null) {
-            item {
+            item(key = "share") {
                 HudButton(
                     shareTitle,
                     {

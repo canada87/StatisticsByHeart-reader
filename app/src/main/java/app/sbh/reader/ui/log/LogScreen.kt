@@ -42,14 +42,14 @@ fun LogScreen(vm: LogViewModel, padding: PaddingValues) {
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { ScreenTitle(stringResource(R.string.nav_log)) }
-        item {
+        item(key = "title") { ScreenTitle(stringResource(R.string.nav_log)) }
+        item(key = "intro") {
             Text(stringResource(R.string.log_intro), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
         }
         val list = logs
         when {
-            list == null -> item { CircularProgressIndicator(color = c.accentGlow) }
-            list.isEmpty() -> item {
+            list == null -> item(key = "loading") { CircularProgressIndicator(color = c.accentGlow) }
+            list.isEmpty() -> item(key = "empty") {
                 HudPanel {
                     Text(stringResource(R.string.log_empty_title), style = MaterialTheme.typography.titleSmall, color = c.fg)
                     Text(stringResource(R.string.log_empty_body), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
