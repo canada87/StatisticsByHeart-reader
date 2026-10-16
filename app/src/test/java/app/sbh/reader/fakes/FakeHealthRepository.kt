@@ -1,5 +1,7 @@
 package app.sbh.reader.fakes
 
+import androidx.health.connect.client.records.ExerciseRouteResult
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.Record
 import app.sbh.reader.health.AggregateKind
 import app.sbh.reader.health.ChangeItem
@@ -42,6 +44,18 @@ class FakeHealthRepository : HealthRepository {
         store.getOrPut(spec.id) { mutableListOf() }.add(record)
     }
 
+    /** What HC would hand out: a workout's route is only readable with READ_EXERCISE_ROUTES, otherwise consent is required. */
+    private fun visible(record: Record): Record {
+        if (record !is ExerciseSessionRecord || HealthTypes.ROUTES_PERMISSION in granted) return record
+        if (record.exerciseRouteResult !is ExerciseRouteResult.Data) return record
+        return ExerciseSessionRecord(
+            startTime = record.startTime, startZoneOffset = record.startZoneOffset,
+            endTime = record.endTime, endZoneOffset = record.endZoneOffset,
+            metadata = record.metadata, exerciseType = record.exerciseType, title = record.title, notes = record.notes,
+            segments = record.segments, laps = record.laps, exerciseRouteResult = ExerciseRouteResult.ConsentRequired(),
+        )
+    }
+
     fun delete(id: String) {
         store.values.forEach { l -> l.removeAll { it.metadata.id == id } }
         log.add(ChangeItem.Delete(id))
@@ -62,7 +76,7 @@ class FakeHealthRepository : HealthRepository {
             }
             .sortedBy { spec.startOf(it) }
         val offset = pageToken?.toInt() ?: 0
-        val page = matching.drop(offset).take(pageSize)
+        val page = matching.drop(offset).take(pageSize).map { visible(it) }
         val next = offset + page.size
         return RecordPage(page, if (next < matching.size) next.toString() else null)
     }
@@ -84,7 +98,7 @@ class FakeHealthRepository : HealthRepository {
                 is ChangeItem.Upsert -> HealthTypes.forRecord(c.record)!!.id in types
                 is ChangeItem.Delete -> true
             }
-        }
+        }.map { c -> if (c is ChangeItem.Upsert) ChangeItem.Upsert(visible(c.record)) else c }
         return ChangesPage(kept, "${pos + page.size}|${parts[1]}|${parts[2]}", hasMore = relevant.size > page.size, tokenExpired = false)
     }
 

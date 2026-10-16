@@ -3,7 +3,8 @@ package app.sbh.reader.sync
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 
-enum class OutboxKind { RECORDS, DELETIONS, AGGREGATES }
+/** [ROUTE_UPDATES] are re-sent workouts carrying a GPS route: posted like records but not counted in the per-type stats. */
+enum class OutboxKind { RECORDS, DELETIONS, AGGREGATES, ROUTE_UPDATES }
 
 /** One unit of work waiting to be delivered. [payload] is the JSON array of items; it never appears in logs. */
 data class OutboxItem(
@@ -34,7 +35,7 @@ data class TypeProgress(
     val backfillComplete: Boolean = false,
 )
 
-enum class SyncMode { BACKFILL, INCREMENTAL }
+enum class SyncMode { BACKFILL, INCREMENTAL, ROUTES }
 enum class SyncStatus { COMPLETED, PARTIAL, FAILED }
 
 data class SyncLogEntry(
@@ -50,12 +51,19 @@ data class SyncLogEntry(
     val errors: List<String>,
 )
 
+/**
+ * Progress of the "re-download GPS routes" job, kept apart from the normal backfill cursors and the Changes token.
+ * [cursor] = everything before it has been read; null = start from the beginning.
+ */
+data class RouteRefreshState(val cursor: Instant? = null, val complete: Boolean = false)
+
 data class BackfillUpdate(val typeId: String, val cursor: Instant?, val complete: Boolean)
 
 /** Sync state that must be persisted atomically with the outbox items produced from it. */
 data class StateUpdate(
     val changesToken: ChangesTokenState? = null,
     val backfill: List<BackfillUpdate> = emptyList(),
+    val routeRefresh: RouteRefreshState? = null,
 )
 
 /**
@@ -82,6 +90,11 @@ interface SyncStore {
 
     /** Forgets all backfill cursors and the Changes token (full re-read on next run). */
     suspend fun resetBackfill(typeIds: Collection<String>)
+
+    /** Null = the route refresh was never started. */
+    suspend fun routeRefresh(): RouteRefreshState?
+
+    fun routeRefreshState(): Flow<RouteRefreshState?>
 
     suspend fun addLog(entry: SyncLogEntry)
 

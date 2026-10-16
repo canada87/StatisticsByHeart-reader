@@ -82,6 +82,9 @@ interface SyncDao {
     @Query("SELECT value FROM kv WHERE `key` = :key")
     suspend fun kv(key: String): String?
 
+    @Query("SELECT value FROM kv WHERE `key` = :key")
+    fun kvFlow(key: String): Flow<String?>
+
     @Upsert
     suspend fun upsertKv(entry: KvEntity)
 
@@ -97,10 +100,10 @@ interface SyncDao {
     @Query("SELECT * FROM sync_log ORDER BY id DESC LIMIT :limit")
     fun logs(limit: Int): Flow<List<SyncLogEntity>>
 
-    @Query("SELECT MAX(finishedAtMillis) FROM sync_log WHERE status = 'COMPLETED'")
+    @Query("SELECT MAX(finishedAtMillis) FROM sync_log WHERE status = 'COMPLETED' AND mode != 'ROUTES'")
     fun lastSuccessMillis(): Flow<Long?>
 
-    @Query("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1")
+    @Query("SELECT * FROM sync_log WHERE mode != 'ROUTES' ORDER BY id DESC LIMIT 1")
     fun lastRun(): Flow<SyncLogEntity?>
 }
 

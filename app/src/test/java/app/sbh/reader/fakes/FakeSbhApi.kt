@@ -21,6 +21,9 @@ class FakeSbhApi : SbhApi {
     val aggregates = mutableListOf<String>()
     val reports = mutableListOf<SyncReportBody>()
 
+    /** Every accepted records POST, as sent (to inspect the data of each record). */
+    val postedBatches = mutableListOf<JsonArray>()
+
     /** Every call in order: "records:Steps:3", "deletions:2", "aggregates:5", "report". */
     val calls = mutableListOf<String>()
     var recordPostCount = 0
@@ -46,6 +49,7 @@ class FakeSbhApi : SbhApi {
     override suspend fun postRecords(syncId: String, records: JsonArray): ApiResult<IngestResult> {
         scripted(records.size)?.let { return it }
         recordPostCount++
+        postedBatches += records
         var accepted = 0
         var unchanged = 0
         var rejected = 0

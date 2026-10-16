@@ -62,7 +62,7 @@ data class SyncResult(
     val shouldRetry: Boolean get() = failure?.retry == true
 }
 
-enum class SyncPhase { PREPARING, CHANGES, BACKFILL, AGGREGATES, UPLOADING }
+enum class SyncPhase { PREPARING, CHANGES, BACKFILL, AGGREGATES, UPLOADING, ROUTES }
 
 data class SyncProgress(val phase: SyncPhase, val typeId: String? = null, val recordsDelivered: Int = 0)
 
@@ -75,6 +75,9 @@ data class SyncLimits(
     val seriesPageSize: Int = 200,
     val recentAggregateDays: Int = 2,
     val maxAttempts: Int = 10,
+    /** A route can weigh megabytes: the GPS refresh reads few sessions per page and posts few per batch. */
+    val routePageSize: Int = 10,
+    val maxRouteRecordsPerBatch: Int = 5,
 )
 
 /**
@@ -98,6 +101,8 @@ class SyncEngine(
         var recordsRejected = 0
         var deletionsSent = 0
         var aggregatesSent = 0
+        var routesSent = 0
+        var routesQueued = 0
         var batches = 0
         val errors = linkedMapOf<String, Int>()
         var onProgress: (SyncProgress) -> Unit = {}
@@ -115,14 +120,23 @@ class SyncEngine(
     private class Stop(val reason: FailureReason) : Exception(null, null, false, false)
 
     /** Runs one sync. Concurrent calls (periodic + "sync now") are serialized. */
-    suspend fun run(onProgress: (SyncProgress) -> Unit = {}): SyncResult = runLock.withLock { runLocked(onProgress) }
+    suspend fun run(onProgress: (SyncProgress) -> Unit = {}): SyncResult =
+        runLock.withLock { runLocked(SyncMode.INCREMENTAL, onProgress) { execute(it) } }
 
-    private suspend fun runLocked(onProgress: (SyncProgress) -> Unit): SyncResult {
-        val run = Run(newId(), clock()).also { it.onProgress = onProgress }
+    /**
+     * Re-reads the workouts of the available history and re-queues only those that now carry a GPS route
+     * (needs READ_EXERCISE_ROUTES). Resumable through its own cursor; shares the lock with [run] but no cursor,
+     * token or per-type stat of the normal sync.
+     */
+    suspend fun refreshRoutes(onProgress: (SyncProgress) -> Unit = {}): SyncResult =
+        runLock.withLock { runLocked(SyncMode.ROUTES, onProgress) { executeRoutes(it) } }
+
+    private suspend fun runLocked(mode: SyncMode, onProgress: (SyncProgress) -> Unit, body: suspend (Run) -> Unit): SyncResult {
+        val run = Run(newId(), clock()).also { it.onProgress = onProgress; it.mode = mode }
         onProgress(SyncProgress(SyncPhase.PREPARING))
         var failure: FailureReason? = null
         try {
-            execute(run)
+            body(run)
         } catch (e: Stop) {
             failure = e.reason
         } catch (e: CancellationException) {
@@ -193,6 +207,55 @@ class SyncEngine(
         }
         enqueueRecentAggregates(run, specs, touchedDays)
         flush(run)
+    }
+
+    // ------------------------------------------------------------------ GPS routes refresh
+
+    private suspend fun executeRoutes(run: Run) {
+        if (!settings.isConfigured()) throw Stop(FailureReason.NOT_CONFIGURED)
+        if (health.sdkStatus() != SdkStatus.AVAILABLE) throw Stop(FailureReason.HC_UNAVAILABLE)
+        val granted = health.grantedPermissions()
+        val spec = HealthTypes.byId.getValue("ExerciseSession")
+        if (spec.readPermission !in granted || spec.id in health.unsupportedTypeIds()) throw Stop(FailureReason.PERMISSIONS_MISSING)
+        if (HealthTypes.ROUTES_PERMISSION !in granted) {
+            run.error("routes_not_granted")
+            throw Stop(FailureReason.PERMISSIONS_MISSING)
+        }
+        var state = store.routeRefresh() ?: RouteRefreshState()
+        if (state.complete) return
+
+        flush(run) // leftovers of earlier runs first
+        val now = clock()
+        var cursor = state.cursor ?: Instant.EPOCH
+        run.onProgress(SyncProgress(SyncPhase.ROUTES, spec.id, run.routesSent))
+        while (cursor.isBefore(now)) {
+            currentCoroutineContext().ensureActive()
+            val peek = health.readRecords(spec, cursor, now, null, 1).records.firstOrNull() ?: break
+            val windowStart = maxOf(cursor, spec.startOf(peek))
+            val windowEnd = minOf(windowStart.plus(limits.backfillWindow), now)
+            readRouteWindow(run, spec, windowStart, windowEnd)
+            state = RouteRefreshState(cursor = windowEnd, complete = false)
+            store.commit(emptyList(), StateUpdate(routeRefresh = state))
+            cursor = windowEnd
+            flush(run)
+            run.onProgress(SyncProgress(SyncPhase.ROUTES, spec.id, run.routesSent))
+        }
+        store.commit(emptyList(), StateUpdate(routeRefresh = RouteRefreshState(cursor = now, complete = true)))
+        flush(run)
+    }
+
+    private suspend fun readRouteWindow(run: Run, spec: HealthTypeSpec, from: Instant, to: Instant) {
+        var token: String? = null
+        do {
+            currentCoroutineContext().ensureActive()
+            val page = health.readRecords(spec, from, to, token, limits.routePageSize)
+            val withRoute = page.records.filter { HealthTypes.hasRoute(it) }
+            run.routesQueued += withRoute.size
+            if (withRoute.isNotEmpty()) {
+                store.commit(recordItems(run, spec, withRoute, OutboxKind.ROUTE_UPDATES, limits.maxRouteRecordsPerBatch))
+            }
+            token = page.nextPageToken
+        } while (token != null)
     }
 
     // ------------------------------------------------------------------ incremental (Changes API)
@@ -354,7 +417,13 @@ class SyncEngine(
 
     // ------------------------------------------------------------------ outbox production
 
-    private fun recordItems(run: Run, spec: HealthTypeSpec, records: List<Record>): List<OutboxItem> {
+    private fun recordItems(
+        run: Run,
+        spec: HealthTypeSpec,
+        records: List<Record>,
+        kind: OutboxKind = OutboxKind.RECORDS,
+        maxRecords: Int = limits.maxBatchRecords,
+    ): List<OutboxItem> {
         val items = mutableListOf<OutboxItem>()
         var buf = StringBuilder("[")
         var count = 0
@@ -364,7 +433,7 @@ class SyncEngine(
             if (count == 0) return
             buf.append(']')
             items += OutboxItem(
-                kind = OutboxKind.RECORDS, typeId = spec.id, syncId = run.syncId,
+                kind = kind, typeId = spec.id, syncId = run.syncId,
                 payload = buf.toString(), itemCount = count, maxTime = maxTime,
             )
             buf = StringBuilder("[")
@@ -380,7 +449,7 @@ class SyncEngine(
                 continue
             }
             val encoded = WireJson.encodeToString(OutRecord.serializer(), out)
-            if (count > 0 && (count >= limits.maxBatchRecords || buf.length + encoded.length > limits.softBatchBytes)) close()
+            if (count > 0 && (count >= maxRecords || buf.length + encoded.length > limits.softBatchBytes)) close()
             if (count > 0) buf.append(',')
             buf.append(encoded)
             count++
@@ -426,6 +495,11 @@ class SyncEngine(
                         run.recordsDelivered += item.itemCount - result.value.rejected
                         run.recordsRejected += result.value.rejected
                         if (result.value.rejected > 0) repeat(result.value.rejected) { run.error("record_rejected", item.typeId) }
+                    }
+                    OutboxKind.ROUTE_UPDATES -> {
+                        run.routesSent += item.itemCount - result.value.rejected
+                        run.recordsRejected += result.value.rejected
+                        repeat(result.value.rejected) { run.error("record_rejected", item.typeId) }
                     }
                     OutboxKind.DELETIONS -> run.deletionsSent += item.itemCount
                     OutboxKind.AGGREGATES -> run.aggregatesSent += item.itemCount
@@ -473,7 +547,7 @@ class SyncEngine(
     /** Posts [array]; on 413 splits it in halves (contract §1.2). */
     private suspend fun post(kind: OutboxKind, syncId: String, array: JsonArray): ApiResult<IngestResult> {
         val result = when (kind) {
-            OutboxKind.RECORDS -> api.postRecords(syncId, array)
+            OutboxKind.RECORDS, OutboxKind.ROUTE_UPDATES -> api.postRecords(syncId, array)
             OutboxKind.DELETIONS -> api.postDeletions(syncId, array)
             OutboxKind.AGGREGATES -> api.postDailyAggregates(syncId, array)
         }
@@ -512,6 +586,10 @@ class SyncEngine(
             "aggregates_sent" to run.aggregatesSent,
             "batches" to run.batches,
         )
+        if (run.mode == SyncMode.ROUTES) {
+            counts["routes_queued"] = run.routesQueued
+            counts["routes_sent"] = run.routesSent
+        }
         val errorList = buildList {
             failure?.let { add("failure:${it.name.lowercase()}") }
             run.errors.forEach { (k, v) -> add("$k=$v") }
@@ -521,7 +599,8 @@ class SyncEngine(
             startedAt = run.startedAt, finishedAt = finishedAt, counts = counts, errors = errorList,
         ))
         // Best-effort report for the writer's sync history; pointless when the server is not reachable.
-        if (failure != FailureReason.NOT_CONFIGURED && failure != FailureReason.NETWORK && failure != FailureReason.CONFIG_INVALID) {
+        // The writer's report only knows backfill/incremental (contract): the GPS job stays in the local log.
+        if (run.mode != SyncMode.ROUTES && failure != FailureReason.NOT_CONFIGURED && failure != FailureReason.NETWORK && failure != FailureReason.CONFIG_INVALID) {
             runCatching {
                 api.postSyncReport(
                     SyncReportBody(

@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import app.sbh.reader.sync.ChangesTokenState
 import app.sbh.reader.sync.OutboxItem
 import app.sbh.reader.sync.OutboxKind
+import app.sbh.reader.sync.RouteRefreshState
 import app.sbh.reader.sync.StateUpdate
 import app.sbh.reader.sync.SyncLogEntry
 import app.sbh.reader.sync.SyncMode
@@ -29,6 +30,9 @@ class RoomSyncStore(private val db: SyncDatabase) : SyncStore {
                 dao.upsertKv(KvEntity(KEY_TOKEN, t.token))
                 dao.upsertKv(KvEntity(KEY_TOKEN_TYPES, t.typesKey))
                 dao.upsertKv(KvEntity(KEY_TOKEN_CREATED, t.createdAt.toEpochMilli().toString()))
+            }
+            state.routeRefresh?.let { r ->
+                dao.upsertKv(KvEntity(KEY_ROUTES, "${r.cursor?.toEpochMilli() ?: "-"}|${if (r.complete) 1 else 0}"))
             }
             for (b in state.backfill) {
                 val cur = dao.typeState(b.typeId) ?: TypeStateEntity(b.typeId)
@@ -79,6 +83,16 @@ class RoomSyncStore(private val db: SyncDatabase) : SyncStore {
             dao.deleteKv(KEY_TOKEN_TYPES)
             dao.deleteKv(KEY_TOKEN_CREATED)
         }
+    }
+
+    override suspend fun routeRefresh(): RouteRefreshState? = dao.kv(KEY_ROUTES).toRouteRefresh()
+
+    override fun routeRefreshState(): Flow<RouteRefreshState?> = dao.kvFlow(KEY_ROUTES).map { it.toRouteRefresh() }
+
+    private fun String?.toRouteRefresh(): RouteRefreshState? {
+        val parts = this?.split('|') ?: return null
+        if (parts.size != 2) return null
+        return RouteRefreshState(cursor = parts[0].toLongOrNull()?.let(Instant::ofEpochMilli), complete = parts[1] == "1")
     }
 
     override suspend fun addLog(entry: SyncLogEntry) {
@@ -132,6 +146,7 @@ class RoomSyncStore(private val db: SyncDatabase) : SyncStore {
 
     private companion object {
         const val KEY_TOKEN = "changes_token"
+        const val KEY_ROUTES = "route_refresh"
         const val KEY_TOKEN_TYPES = "changes_token_types"
         const val KEY_TOKEN_CREATED = "changes_token_created"
     }
