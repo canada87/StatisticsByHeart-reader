@@ -1,6 +1,5 @@
 package app.sbh.reader.health
 
-import androidx.health.connect.client.permission.HealthPermission
 import app.sbh.reader.fakes.TestRecords
 import app.sbh.reader.fakes.TestRecords.heartRate
 import app.sbh.reader.fakes.TestRecords.sleep
@@ -58,8 +57,9 @@ class HealthTypesTest {
     }
 
     @Test
-    fun routesPermissionMatchesTheLibraryConstant() {
-        assertEquals(HealthPermission.PERMISSION_READ_EXERCISE_ROUTES, HealthTypes.ROUTES_PERMISSION)
+    fun routesPermissionIsTheHealthConnectString() {
+        // connect-client 1.1.0 has no constant for it
+        assertEquals("android.permission.health.READ_EXERCISE_ROUTES", HealthTypes.ROUTES_PERMISSION)
     }
 
     // ------------------------------------------------------------ exercise routes

@@ -2,6 +2,8 @@ package app.sbh.reader.fakes
 
 import androidx.health.connect.client.records.ExerciseRoute
 import androidx.health.connect.client.records.ExerciseRouteResult
+import androidx.health.connect.client.records.ExerciseLap
+import androidx.health.connect.client.records.ExerciseSegment
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
@@ -59,16 +61,26 @@ object TestRecords {
         minutes: Long = 30,
         routePoints: Int? = 0,
         modified: Instant = Instant.parse("2026-09-01T00:00:00Z"),
-    ): ExerciseSessionRecord = ExerciseSessionRecord(
-        startTime = start,
-        startZoneOffset = CEST,
-        endTime = start.plusSeconds(minutes * 60),
-        endZoneOffset = CEST,
-        metadata = metadata(id, modified),
-        exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
-        title = "Camminata",
-        exerciseRouteResult = routeResult(start, routePoints),
+    ): ExerciseSessionRecord = exerciseWithRoute(
+        start, start.plusSeconds(minutes * 60), metadata(id, modified), ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
+        "Camminata", null, emptyList(), emptyList(), routeResult(start, routePoints),
     )
+
+    // The constructor that takes the route is internal to Health Connect (apps only ever receive it): tests reach it by reflection.
+    private val EXERCISE_CTOR = ExerciseSessionRecord::class.java.constructors.first { c ->
+        !c.isSynthetic && ExerciseRouteResult::class.java in c.parameterTypes && c.parameterTypes.firstOrNull() == Instant::class.java
+    }
+
+    fun exerciseWithRoute(
+        start: Instant, end: Instant, metadata: Metadata, exerciseType: Int, title: String?, notes: String?,
+        segments: List<ExerciseSegment>, laps: List<ExerciseLap>, route: ExerciseRouteResult,
+    ): ExerciseSessionRecord {
+        // positional: start, startOffset, end, endOffset, metadata, exerciseType, title, notes, segments, laps, route, [planned id]
+        val ordered = listOf<Any?>(start, CEST, end, CEST, metadata, exerciseType, title, notes, segments, laps, route)
+        val args = arrayOfNulls<Any?>(EXERCISE_CTOR.parameterCount)
+        ordered.forEachIndexed { i, v -> if (i < args.size) args[i] = v }
+        return EXERCISE_CTOR.newInstance(*args) as ExerciseSessionRecord
+    }
 
     // Points are 1 ms apart so that even the capped 50k-point route stays inside the session (HC validates it).
     fun routeResult(start: Instant, points: Int?): ExerciseRouteResult = when {

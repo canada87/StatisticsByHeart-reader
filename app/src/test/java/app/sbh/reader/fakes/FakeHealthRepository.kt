@@ -48,11 +48,9 @@ class FakeHealthRepository : HealthRepository {
     private fun visible(record: Record): Record {
         if (record !is ExerciseSessionRecord || HealthTypes.ROUTES_PERMISSION in granted) return record
         if (record.exerciseRouteResult !is ExerciseRouteResult.Data) return record
-        return ExerciseSessionRecord(
-            startTime = record.startTime, startZoneOffset = record.startZoneOffset,
-            endTime = record.endTime, endZoneOffset = record.endZoneOffset,
-            metadata = record.metadata, exerciseType = record.exerciseType, title = record.title, notes = record.notes,
-            segments = record.segments, laps = record.laps, exerciseRouteResult = ExerciseRouteResult.ConsentRequired(),
+        return TestRecords.exerciseWithRoute(
+            record.startTime, record.endTime, record.metadata, record.exerciseType, record.title, record.notes,
+            record.segments, record.laps, ExerciseRouteResult.ConsentRequired(),
         )
     }
 
