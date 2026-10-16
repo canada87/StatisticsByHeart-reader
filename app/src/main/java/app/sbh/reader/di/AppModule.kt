@@ -27,6 +27,7 @@ import app.sbh.reader.ui.config.LogViewModel
 import app.sbh.reader.ui.data.DataViewModel
 import app.sbh.reader.ui.data.InventoryViewModel
 import app.sbh.reader.ui.link.LinkViewModel
+import app.sbh.reader.work.RouteRefreshWorker
 import app.sbh.reader.work.SyncNotifier
 import app.sbh.reader.work.SyncRunner
 import app.sbh.reader.work.SyncScheduler
@@ -76,6 +77,7 @@ val appModule = module {
     single { SyncScheduler(androidContext()) }
 
     worker { SyncWorker(androidContext(), get(), get(), get()) }
+    worker { RouteRefreshWorker(androidContext(), get(), get(), get()) }
 
     viewModel { MainViewModel(get(), get(), get()) }
     viewModel { LinkViewModel(get<Application>(), get(), get(), get(), get(), get(), get(), get()) }

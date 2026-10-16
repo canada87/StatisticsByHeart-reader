@@ -10,6 +10,8 @@ import app.sbh.reader.net.SbhApi
 import app.sbh.reader.net.ServerConfig
 import app.sbh.reader.net.UrlNormalizer
 import app.sbh.reader.security.TokenStore
+import app.sbh.reader.sync.RouteRefreshState
+import app.sbh.reader.sync.StateUpdate
 import app.sbh.reader.sync.SyncLogEntry
 import app.sbh.reader.sync.SyncStore
 import app.sbh.reader.health.HealthTypes
@@ -44,6 +46,9 @@ data class ConfigUiState(
     val test: ConnectionTest = ConnectionTest.Idle,
     val dirty: Boolean = false,
     val savedJustNow: Boolean = false,
+    /** Null = the GPS routes refresh was never started. */
+    val routeRefresh: RouteRefreshState? = null,
+    val routesPending: Boolean = false,
 )
 
 class ConfigViewModel(
@@ -66,7 +71,9 @@ class ConfigViewModel(
 
     private val form = MutableStateFlow(Form(tokenSaved = tokens.hasToken()))
 
-    val state: StateFlow<ConfigUiState> = combine(settings.settings, form) { s, f ->
+    val state: StateFlow<ConfigUiState> = combine(
+        settings.settings, form, store.routeRefreshState(), scheduler.routesPending,
+    ) { s, f, routes, routesPending ->
         val url = f.urlInput ?: s.serverUrl
         ConfigUiState(
             settings = s,
@@ -78,6 +85,8 @@ class ConfigViewModel(
             test = f.test,
             dirty = (f.urlInput != null && f.urlInput != s.serverUrl) || f.tokenInput.isNotBlank(),
             savedJustNow = f.saved,
+            routeRefresh = routes,
+            routesPending = routesPending,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConfigUiState())
 
@@ -164,6 +173,17 @@ class ConfigViewModel(
 
     fun setReduceMotion(v: Boolean) {
         viewModelScope.launch { settings.setReduceMotion(v) }
+    }
+
+    /**
+     * Starts the GPS routes job. [restart] = from the beginning of the history; otherwise it resumes from its own
+     * cursor. It never touches the normal sync cursors or the Changes token.
+     */
+    fun refreshRoutes(restart: Boolean) {
+        viewModelScope.launch {
+            if (restart) store.commit(emptyList(), StateUpdate(routeRefresh = RouteRefreshState()))
+            scheduler.refreshRoutes(settings.current().wifiOnly)
+        }
     }
 
     /** Forgets cursors and the Changes token: the next sync re-reads the whole history (idempotent upserts). */

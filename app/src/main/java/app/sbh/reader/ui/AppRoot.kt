@@ -69,6 +69,26 @@ import org.koin.androidx.compose.koinViewModel
 @Serializable data object InventoryRoute
 @Serializable data object PowerGuideRoute
 
+/**
+ * READ_EXERCISE_ROUTES cannot be requested with the permission dialog: open the per-app Health Connect permission
+ * screen (framework action on Android 14+, the HC app's action before), else the general HC settings.
+ */
+private fun openRoutePermission(context: android.content.Context) {
+    val attempts = listOf(
+        Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS").putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName),
+        Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS").putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName),
+        Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS),
+    )
+    for (intent in attempts) {
+        try {
+            context.startActivity(intent)
+            return
+        } catch (_: RuntimeException) {
+            // ActivityNotFoundException / SecurityException: try the next, less specific screen
+        }
+    }
+}
+
 private data class TopLevel(val route: Any, val labelRes: Int, val iconRes: Int, val isCurrent: (androidx.navigation.NavDestination) -> Boolean)
 
 private val topLevels = listOf(
@@ -107,6 +127,7 @@ fun AppRoot(main: MainViewModel) {
                 } catch (_: ActivityNotFoundException) {
                     // no HC settings screen available
                 }
+                UiEvent.OpenRoutePermission -> openRoutePermission(context)
                 UiEvent.OpenHealthConnectStore -> {
                     val market = Intent(
                         Intent.ACTION_VIEW,

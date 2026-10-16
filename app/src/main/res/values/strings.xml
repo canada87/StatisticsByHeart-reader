@@ -243,4 +243,25 @@
         <item quantity="one">ogni %d ora</item>
         <item quantity="other">ogni %d ore</item>
     </plurals>
+
+    <!-- Tracce GPS degli allenamenti -->
+    <string name="config_routes">Tracce GPS degli allenamenti</string>
+    <string name="config_routes_granted">Concesse</string>
+    <string name="config_routes_not_granted">Non concesse</string>
+    <string name="config_routes_status">Stato: %1$s</string>
+    <string name="config_routes_body_granted">La sync invia anche il percorso GPS degli allenamenti nuovi o modificati. Serve a distinguere gli allenamenti veri da quelli rilevati in automatico.</string>
+    <string name="config_routes_body_missing">Senza questo permesso gli allenamenti arrivano al server senza percorso. Health Connect non permette di chiederlo con la finestra normale: si concede dalle sue impostazioni, nei permessi di questa app, alla voce delle tracce di allenamento (consenti tutte).</string>
+    <string name="config_routes_grant">Concedi in Health Connect</string>
+    <string name="config_routes_refresh">Riscarica tracce GPS</string>
+    <string name="config_routes_resume">Riprendi il riscaricamento</string>
+    <string name="config_routes_running">Riscaricamento in corso… Lo trovi nel Log quando finisce.</string>
+    <string name="config_routes_interrupted">Riscaricamento interrotto: puoi riprenderlo da dove era arrivato.</string>
+    <string name="config_routes_done">Ultimo riscaricamento completato. Il Log riporta quante tracce sono state inviate.</string>
+    <string name="config_routes_confirm_title">Riscaricare le tracce GPS?</string>
+    <string name="config_routes_confirm_body">Rilegge gli allenamenti dello storico disponibile e reinvia al server solo quelli che hanno un percorso GPS. Può richiedere tempo e traffico (un percorso pesa anche alcuni MB): prosegue in background con una notifica e si può riprendere se si interrompe.</string>
+    <string name="progress_routes">Tracce GPS: %1$d inviate</string>
+    <string name="notif_phase_routes">Tracce GPS · %1$d inviate</string>
+    <string name="log_mode_routes">Tracce GPS</string>
+    <string name="log_counts_routes">%1$d allenamenti con traccia · %2$d inviati · %3$s</string>
+    <string name="err_routes_not_granted">Permesso delle tracce di allenamento non concesso in Health Connect.</string>
 </resources>

@@ -191,6 +191,7 @@ private fun progressText(p: SyncProgress?): String? = when (p?.phase) {
     SyncPhase.CHANGES -> stringResource(R.string.progress_changes)
     SyncPhase.AGGREGATES -> stringResource(R.string.progress_aggregates)
     SyncPhase.UPLOADING -> stringResource(R.string.progress_uploading, p.recordsDelivered)
+    SyncPhase.ROUTES -> stringResource(R.string.progress_routes, p.recordsDelivered)
     SyncPhase.PREPARING -> stringResource(R.string.progress_preparing)
     null -> stringResource(R.string.progress_preparing)
 }

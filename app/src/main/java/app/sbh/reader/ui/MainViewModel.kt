@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 sealed interface UiEvent {
     data class RequestPermissions(val permissions: Set<String>) : UiEvent
     data object OpenHealthConnectSettings : UiEvent
+    data object OpenRoutePermission : UiEvent
     data object OpenHealthConnectStore : UiEvent
     data object RequestNotificationPermission : UiEvent
 }
@@ -77,6 +78,15 @@ class MainViewModel(
 
     fun openHealthConnectSettings() {
         viewModelScope.launch { _events.send(UiEvent.OpenHealthConnectSettings) }
+    }
+
+    /** Opens the Health Connect screen of this app, where "all workout routes" is granted (no in-app request exists). */
+    fun openRoutePermission() {
+        viewModelScope.launch { _events.send(UiEvent.OpenRoutePermission) }
+    }
+
+    fun requestNotificationPermission() {
+        viewModelScope.launch { _events.send(UiEvent.RequestNotificationPermission) }
     }
 
     fun openHealthConnectStore() {

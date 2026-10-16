@@ -43,6 +43,7 @@ import app.sbh.reader.ui.components.SbhIcon
 import app.sbh.reader.ui.components.ScreenTitle
 import app.sbh.reader.ui.components.SectionLabel
 import app.sbh.reader.ui.components.StatusBanner
+import app.sbh.reader.ui.components.StatusTag
 import app.sbh.reader.ui.theme.SbhTheme
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -59,6 +60,8 @@ fun ConfigScreen(
     var showToken by rememberSaveable { mutableStateOf(false) }
     var confirmBackfill by rememberSaveable { mutableStateOf(false) }
     var confirmClearToken by rememberSaveable { mutableStateOf(false) }
+    var confirmRoutes by rememberSaveable { mutableStateOf(false) }
+    val access by main.access.collectAsStateWithLifecycle()
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -213,6 +216,68 @@ fun ConfigScreen(
             }
         }
 
+        // ---- GPS routes ----
+        item(key = "routes") {
+            val granted = access.routesGranted
+            val refresh = state.routeRefresh
+            val interrupted = refresh != null && !refresh.complete
+            HudPanel(accent = if (granted) c.ok else c.warn) {
+                SectionLabel(stringResource(R.string.config_routes))
+                StatusTag(
+                    if (granted) R.drawable.ic_check_circle else R.drawable.ic_warning,
+                    stringResource(
+                        R.string.config_routes_status,
+                        stringResource(if (granted) R.string.config_routes_granted else R.string.config_routes_not_granted),
+                    ),
+                    if (granted) c.ok else c.warn,
+                )
+                Text(
+                    stringResource(if (granted) R.string.config_routes_body_granted else R.string.config_routes_body_missing),
+                    style = MaterialTheme.typography.bodySmall, color = c.fgMuted,
+                )
+                if (!granted) {
+                    HudButton(
+                        stringResource(R.string.config_routes_grant),
+                        main::openRoutePermission,
+                        Modifier.fillMaxWidth(),
+                        icon = R.drawable.ic_gear_six,
+                    )
+                } else {
+                    val note = when {
+                        state.routesPending -> R.string.config_routes_running
+                        interrupted -> R.string.config_routes_interrupted
+                        refresh != null -> R.string.config_routes_done
+                        else -> null
+                    }
+                    note?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = c.fgMuted) }
+                    HudButton(
+                        stringResource(if (interrupted) R.string.config_routes_resume else R.string.config_routes_refresh),
+                        {
+                            if (interrupted) {
+                                main.requestNotificationPermission()
+                                vm.refreshRoutes(restart = false)
+                            } else {
+                                confirmRoutes = true
+                            }
+                        },
+                        Modifier.fillMaxWidth(),
+                        style = ButtonStyle.SECONDARY,
+                        icon = R.drawable.ic_download_simple,
+                        enabled = !state.routesPending,
+                    )
+                    if (interrupted && !state.routesPending) {
+                        HudButton(
+                            stringResource(R.string.config_routes_refresh),
+                            { confirmRoutes = true },
+                            Modifier.fillMaxWidth(),
+                            style = ButtonStyle.SECONDARY,
+                            icon = R.drawable.ic_download_simple,
+                        )
+                    }
+                }
+            }
+        }
+
         // ---- history ----
         item(key = "history") {
             HudPanel(accent = c.danger) {
@@ -244,6 +309,20 @@ fun ConfigScreen(
             confirm = stringResource(R.string.config_backfill_action),
             onConfirm = { confirmBackfill = false; vm.resetBackfill() },
             onDismiss = { confirmBackfill = false },
+        )
+    }
+    if (confirmRoutes) {
+        ConfirmDialog(
+            title = stringResource(R.string.config_routes_confirm_title),
+            body = stringResource(R.string.config_routes_confirm_body),
+            confirm = stringResource(R.string.config_routes_refresh),
+            destructive = false,
+            onConfirm = {
+                confirmRoutes = false
+                main.requestNotificationPermission()
+                vm.refreshRoutes(restart = true)
+            },
+            onDismiss = { confirmRoutes = false },
         )
     }
     if (confirmClearToken) {
@@ -289,7 +368,14 @@ private fun ConnectionResult(test: ConnectionTest) {
 }
 
 @Composable
-fun ConfirmDialog(title: String, body: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun ConfirmDialog(
+    title: String,
+    body: String,
+    confirm: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    destructive: Boolean = true,
+) {
     val c = SbhTheme.colors
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -298,7 +384,7 @@ fun ConfirmDialog(title: String, body: String, confirm: String, onConfirm: () ->
         text = { Text(body, style = MaterialTheme.typography.bodySmall, color = c.fgMuted) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(confirm.uppercase(), color = c.dangerText, style = MaterialTheme.typography.labelLarge)
+                Text(confirm.uppercase(), color = if (destructive) c.dangerText else c.accentGlow, style = MaterialTheme.typography.labelLarge)
             }
         },
         dismissButton = {

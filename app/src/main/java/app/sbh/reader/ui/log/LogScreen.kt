@@ -72,17 +72,31 @@ private fun LogRow(e: SyncLogEntry) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             StatusTag(icon, text, tint)
             Text(
-                stringResource(if (e.mode == SyncMode.BACKFILL) R.string.log_mode_backfill else R.string.log_mode_incremental).uppercase(),
+                stringResource(
+                    when (e.mode) {
+                        SyncMode.BACKFILL -> R.string.log_mode_backfill
+                        SyncMode.INCREMENTAL -> R.string.log_mode_incremental
+                        SyncMode.ROUTES -> R.string.log_mode_routes
+                    },
+                ).uppercase(),
                 style = MaterialTheme.typography.labelSmall, color = c.fgMuted,
             )
         }
         Text(formatDateTime(e.startedAt), style = MaterialTheme.typography.bodyMedium, color = c.fg)
         Text(
-            stringResource(
-                R.string.log_counts,
-                e.counts["records_sent"] ?: 0, e.counts["deletions_sent"] ?: 0, e.counts["aggregates_sent"] ?: 0,
-                formatDuration(Duration.between(e.startedAt, e.finishedAt)),
-            ),
+            if (e.mode == SyncMode.ROUTES) {
+                stringResource(
+                    R.string.log_counts_routes,
+                    e.counts["routes_queued"] ?: 0, e.counts["routes_sent"] ?: 0,
+                    formatDuration(Duration.between(e.startedAt, e.finishedAt)),
+                )
+            } else {
+                stringResource(
+                    R.string.log_counts,
+                    e.counts["records_sent"] ?: 0, e.counts["deletions_sent"] ?: 0, e.counts["aggregates_sent"] ?: 0,
+                    formatDuration(Duration.between(e.startedAt, e.finishedAt)),
+                )
+            },
             style = MaterialTheme.typography.bodySmall, color = c.fgMuted,
         )
         val rejected = e.counts["records_rejected"] ?: 0
@@ -113,6 +127,7 @@ private fun errorText(code: String): String {
             "server" -> stringResource(R.string.err_server)
             else -> stringResource(R.string.err_hc_error)
         }
+        "routes_not_granted" -> stringResource(R.string.err_routes_not_granted)
         "token_expired" -> stringResource(R.string.err_token_expired)
         "type_read_failed" -> stringResource(R.string.err_type_read_failed, rest)
         "aggregate_failed" -> stringResource(R.string.err_aggregate_failed, rest)

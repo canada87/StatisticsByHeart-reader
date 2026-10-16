@@ -22,9 +22,15 @@ class SyncRunner(
     private val engine: SyncEngine,
     private val status: SyncStatusHolder,
 ) {
-    suspend fun run(onProgress: (SyncProgress) -> Unit = {}): SyncResult {
+    suspend fun run(onProgress: (SyncProgress) -> Unit = {}): SyncResult = track(onProgress) { engine.run(it) }
+
+    /** The resumable "re-download GPS routes" job (see [SyncEngine.refreshRoutes]). */
+    suspend fun refreshRoutes(onProgress: (SyncProgress) -> Unit = {}): SyncResult =
+        track(onProgress) { engine.refreshRoutes(it) }
+
+    private suspend fun track(onProgress: (SyncProgress) -> Unit, block: suspend ((SyncProgress) -> Unit) -> SyncResult): SyncResult {
         try {
-            return engine.run { p ->
+            return block { p ->
                 status.update(p)
                 onProgress(p)
             }
