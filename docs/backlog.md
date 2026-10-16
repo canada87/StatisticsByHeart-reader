@@ -33,5 +33,5 @@ Il passaggio non è reversibile senza un nuovo backfill completo.
 
 ## Altre idee
 
-- Consenso per-sessione alle rotte GPS (`ExerciseRouteRequestContract`) per inviare `ExerciseSession.data.route`.
+- ~~Rotte GPS degli allenamenti~~ **fatto in 0.2.0**: permesso `READ_EXERCISE_ROUTES` (concesso a mano nelle impostazioni di Health Connect, non richiedibile in-app), invio della traccia nella sync normale e azione *Riscarica tracce GPS* (Config). Limiti: il consenso per singola sessione (`ExerciseRouteRequestContract`) non è usato; storico limitato alla finestra di Health Connect; revocando il permesso le modifiche successive tornano senza traccia.
 - Rilevare l'ora dell'ultima sync riuscita anche lato writer e avvisare dopo 48 h senza sync (Fase 5 della guida).

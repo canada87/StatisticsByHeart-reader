@@ -18,7 +18,7 @@ Non è una dashboard: è un intermediario con una UI di stato in stile HUD / sci
 | **Dati** | Elenco dei tipi (registro) con **toggle on/off**, stato permesso, record inviati e data dell'ultimo; riepilogo «oggi» (passi, FC, sonno) da Health Connect; accesso all'**Inventario**. |
 | **Inventario** | Per ogni tipo **e per ogni app sorgente** (Feelfit, Fit, Withings…): conteggio record, primo/ultimo record. Serve alla scrematura e a capire cosa scrive davvero ogni app. Solo conteggi e date; si può condividere come testo. |
 | **Log** | Cronologia sync (esito, modalità, durata, conteggi, errori leggibili). Mai valori sanitari. |
-| **Config** | URL del server, token (cifrato con Keystore, mostra/nascondi), **prova connessione** (`/health` + `/ping`), intervallo (1–24 h), solo Wi‑Fi, riduci animazioni, permessi Health Connect, backfill completo, guida HyperOS, privacy. |
+| **Config** | URL del server, token (cifrato con Keystore, mostra/nascondi), **prova connessione** (`/health` + `/ping`), intervallo (1–24 h), solo Wi‑Fi, riduci animazioni, permessi Health Connect, **tracce GPS degli allenamenti** (stato del permesso, scorciatoia verso Health Connect, **Riscarica tracce GPS**), backfill completo, guida HyperOS, privacy. |
 | **Guida HyperOS** | 4 passi guidati (ottimizzazione batteria, avvio automatico, «nessuna restrizione», blocco nelle recenti) con scorciatoie verso le schermate MIUI/HyperOS. |
 
 ## Requisiti
@@ -224,7 +224,8 @@ La build debug accetta HTTP in chiaro **solo** verso `100.84.182.8` (host tailne
 2. **Link** → *Concedi permessi*: tipi attivi + *storico* + *background* (la richiesta li include se Health Connect li supporta).
 3. **Dati → Inventario** → *Avvia scansione* (se vuoi vedere anche i tipi non attivi, *Concedi lettura di tutti i tipi*): è la Fase 0 della guida; *Condividi riepilogo* esporta conteggi e date.
 4. **Link** → *Sincronizza ora*: parte il **backfill** (notifica discreta, riprende da dove era arrivato se interrotto).
-5. **Config → Guida HyperOS**: completa i 4 passi, poi controlla che «ultima sync riuscita» si aggiorni da solo a schermo spento.
+5. **Config → Tracce GPS degli allenamenti** → *Concedi in Health Connect*: nella schermata dei permessi dell'app abilita la lettura di **tutte** le tracce di allenamento (non si può chiedere con la finestra normale). Tornando nell'app lo stato passa a «Concesse». Per gli allenamenti già inviati senza traccia: *Riscarica tracce GPS* (vedi sotto).
+6. **Config → Guida HyperOS**: completa i 4 passi, poi controlla che «ultima sync riuscita» si aggiorni da solo a schermo spento.
 
 ## Architettura
 
@@ -279,11 +280,12 @@ Touch target ≥ 48 dp, righe-interruttore annunciate come *Switch* da TalkBack,
 
 `./gradlew :app:testDebugUnitTest` — JUnit con `HealthRepository` e `SbhApi` finti e store in memoria (`app/src/test/.../fakes`): backfill e ripresa dopo errori,
 Changes API (upsert, cancellazioni, paginazione, ordine), token scaduto, nuovo tipo attivato, 413/401/5xx, record rifiutati, mapper (unità e campi del contratto),
-client HTTP (gzip, header, mappatura errori), URL, contrasti dei token e copertura dei permessi nel manifest.
+tracce GPS (con/senza permesso, riscaricamento riprendibile, limiti dei batch), client HTTP (gzip, header, mappatura errori), URL, contrasti dei token e copertura dei permessi nel manifest.
 
 ## Problemi noti / da sapere
 
-- Le **rotte GPS** (`ExerciseSession.data.route`) sono inviate solo se Health Connect le restituisce (serve il consenso per sessione, non ancora richiesto dall'app).
+- **Tracce GPS** (`ExerciseSession.data.route`, fino a 50 000 punti): dalla 0.2.0 l'app dichiara `READ_EXERCISE_ROUTES`. Con il permesso concesso in Health Connect, gli allenamenti nuovi o modificati partono con la traccia (anche in background); senza, partono come prima, senza errori. **Riscarica tracce GPS** (Config) rilegge gli allenamenti dello storico disponibile a finestre di 7 giorni e rimette in coda **solo** quelli che ora hanno una traccia: ha un cursore suo (non tocca cursori, token o conteggi della sync normale), riprende da dove era arrivato se si interrompe (pulsante *Riprendi il riscaricamento*), mostra una notifica foreground e scrive nel Log una voce «Tracce GPS» con soli conteggi. Un batch contiene al massimo 5 sessioni con traccia (e ~4 MB), e il 413 del server dimezza il batch. Il writer aggiorna la sessione anche con lo stesso `last_modified`. Limiti: Health Connect conserva gli allenamenti entro la finestra di storico concessa; le sessioni la cui traccia non è leggibile vengono saltate; se il permesso viene revocato, le modifiche successive arrivano di nuovo senza traccia.
+- Le tracce non entrano mai nel Log né nelle notifiche: solo conteggi.
 - `MindfulnessSession` non è nel registro (API ancora sperimentale in Health Connect 1.1).
 - `targetSdk 36`: porta a 37 dopo averlo provato sul telefono (compileSdk è già 37).
 - Licenze: font Share Tech Mono e Fira Code (OFL) e icone Phosphor (MIT) in [`docs/`](docs/).
