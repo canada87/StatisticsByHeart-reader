@@ -17,17 +17,24 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.sbh.reader.BuildConfig
 import app.sbh.reader.R
@@ -62,6 +69,15 @@ fun ConfigScreen(
     var confirmClearToken by rememberSaveable { mutableStateOf(false) }
     var confirmRoutes by rememberSaveable { mutableStateOf(false) }
     val access by main.access.collectAsStateWithLifecycle()
+    val routesSent by vm.routesSent.collectAsStateWithLifecycle()
+
+    // The GPS job reads routes only while the app is visible (Health Connect hides them from background reads).
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.pauseRoutes() }
+    val view = LocalView.current
+    DisposableEffect(state.routesPending) {
+        view.keepScreenOn = state.routesPending
+        onDispose { view.keepScreenOn = false }
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -250,11 +266,24 @@ fun ConfigScreen(
                         else -> null
                     }
                     note?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = c.fgMuted) }
+                    if (state.routesPending) {
+                        Text(
+                            stringResource(R.string.config_routes_progress, routesSent),
+                            style = MaterialTheme.typography.bodyMedium, color = c.fg,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                        HudButton(
+                            stringResource(R.string.config_routes_stop),
+                            vm::pauseRoutes,
+                            Modifier.fillMaxWidth(),
+                            style = ButtonStyle.SECONDARY,
+                            icon = R.drawable.ic_x_circle,
+                        )
+                    }
                     HudButton(
                         stringResource(if (interrupted) R.string.config_routes_resume else R.string.config_routes_refresh),
                         {
                             if (interrupted) {
-                                main.requestNotificationPermission()
                                 vm.refreshRoutes(restart = false)
                             } else {
                                 confirmRoutes = true
@@ -319,7 +348,6 @@ fun ConfigScreen(
             destructive = false,
             onConfirm = {
                 confirmRoutes = false
-                main.requestNotificationPermission()
                 vm.refreshRoutes(restart = true)
             },
             onDismiss = { confirmRoutes = false },

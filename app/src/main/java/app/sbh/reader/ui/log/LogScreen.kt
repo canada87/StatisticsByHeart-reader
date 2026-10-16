@@ -99,6 +99,7 @@ private fun LogRow(e: SyncLogEntry) {
             },
             style = MaterialTheme.typography.bodySmall, color = c.fgMuted,
         )
+        RouteStats(e.counts)
         val rejected = e.counts["records_rejected"] ?: 0
         if (rejected > 0) {
             Text(stringResource(R.string.log_rejected, rejected), style = MaterialTheme.typography.bodySmall, color = c.warn)
@@ -108,6 +109,33 @@ private fun LogRow(e: SyncLogEntry) {
                 Text(errorText(code), style = MaterialTheme.typography.bodySmall, color = c.fgMuted)
             }
         }
+    }
+}
+
+/** Workout GPS routes by outcome, total and per source app (counts only, never coordinates). */
+@Composable
+private fun RouteStats(counts: Map<String, Int>) {
+    if (counts.keys.none { it.startsWith("route_") }) return
+    val c = SbhTheme.colors
+    Text(
+        stringResource(
+            R.string.log_routes_summary,
+            counts["route_data"] ?: 0, counts["route_consent_required"] ?: 0, counts["route_no_data"] ?: 0,
+        ),
+        style = MaterialTheme.typography.bodySmall, color = c.fgMuted,
+    )
+    val bySource = counts.filterKeys { it.startsWith("route_src:") }.entries.groupBy({ it.key.removePrefix("route_src:").substringBeforeLast(':') }) {
+        it.key.substringAfterLast(':') to it.value
+    }
+    for ((source, outcomes) in bySource.toSortedMap()) {
+        val byOutcome = outcomes.toMap()
+        Text(
+            stringResource(
+                R.string.log_routes_source, source,
+                byOutcome["data"] ?: 0, byOutcome["consent_required"] ?: 0, byOutcome["no_data"] ?: 0,
+            ),
+            style = MaterialTheme.typography.bodySmall, color = c.fgMuted,
+        )
     }
 }
 
@@ -127,6 +155,7 @@ private fun errorText(code: String): String {
             "server" -> stringResource(R.string.err_server)
             else -> stringResource(R.string.err_hc_error)
         }
+        "route_read_failed" -> stringResource(R.string.err_route_read_failed)
         "routes_not_granted" -> stringResource(R.string.err_routes_not_granted)
         "token_expired" -> stringResource(R.string.err_token_expired)
         "type_read_failed" -> stringResource(R.string.err_type_read_failed, rest)

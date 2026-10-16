@@ -103,6 +103,17 @@ class SyncEngine(
         var aggregatesSent = 0
         var routesSent = 0
         var routesQueued = 0
+
+        /** Whether READ_EXERCISE_ROUTES is held: only then workouts are re-read one by one to get their route. */
+        var routesGranted = false
+
+        /** Workouts by route outcome and source app: `route_data`, `route_src:<package>:<outcome>`. Counts only. */
+        val routeStats = linkedMapOf<String, Int>()
+
+        fun routeOutcome(outcome: HealthTypes.RouteOutcome, source: String) {
+            val name = outcome.name.lowercase()
+            for (key in listOf("route_$name", "route_src:$source:$name")) routeStats[key] = (routeStats[key] ?: 0) + 1
+        }
         var batches = 0
         val errors = linkedMapOf<String, Int>()
         var onProgress: (SyncProgress) -> Unit = {}
@@ -160,6 +171,7 @@ class SyncEngine(
             else -> throw Stop(FailureReason.HC_UNAVAILABLE)
         }
         val granted = health.grantedPermissions()
+        run.routesGranted = HealthTypes.ROUTES_PERMISSION in granted
         val unsupported = health.unsupportedTypeIds()
         val specs = settings.enabledTypeIds()
             .mapNotNull { HealthTypes.byId[it] }
@@ -221,6 +233,7 @@ class SyncEngine(
             run.error("routes_not_granted")
             throw Stop(FailureReason.PERMISSIONS_MISSING)
         }
+        run.routesGranted = true
         var state = store.routeRefresh() ?: RouteRefreshState()
         if (state.complete) return
 
@@ -249,13 +262,36 @@ class SyncEngine(
         do {
             currentCoroutineContext().ensureActive()
             val page = health.readRecords(spec, from, to, token, limits.routePageSize)
-            val withRoute = page.records.filter { HealthTypes.hasRoute(it) }
+            val withRoute = withRoutes(run, spec, page.records).filter { HealthTypes.hasRoute(it) }
             run.routesQueued += withRoute.size
             if (withRoute.isNotEmpty()) {
                 store.commit(recordItems(run, spec, withRoute, OutboxKind.ROUTE_UPDATES, limits.maxRouteRecordsPerBatch))
             }
             token = page.nextPageToken
         } while (token != null)
+    }
+
+    /**
+     * Workout routes come only from a single-record read. Without READ_EXERCISE_ROUTES (or for other types) the
+     * records are returned untouched. A read that fails or answers "consent required" (background read of another
+     * app's route) keeps the workout in the batch without a route: it is still sent and counted, and a foreground
+     * "Riscarica tracce GPS" recovers it. Never logs coordinates, only outcomes per source app.
+     */
+    private suspend fun withRoutes(run: Run, spec: HealthTypeSpec, records: List<Record>): List<Record> {
+        if (spec.id != "ExerciseSession" || !run.routesGranted) return records
+        return records.map { listed ->
+            currentCoroutineContext().ensureActive()
+            val full = try {
+                health.readRecordById(spec, listed.metadata.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                run.error("route_read_failed", spec.id)
+                listed
+            }
+            HealthTypes.routeOutcome(full)?.let { run.routeOutcome(it, full.metadata.dataOrigin.packageName) }
+            full
+        }
     }
 
     // ------------------------------------------------------------------ incremental (Changes API)
@@ -285,7 +321,7 @@ class SyncEngine(
                 }
             }
             val items = mutableListOf<OutboxItem>()
-            for ((spec, records) in upserts) items += recordItems(run, spec, records)
+            for ((spec, records) in upserts) items += recordItems(run, spec, withRoutes(run, spec, records))
             items += deletionItems(run, deletions)
             current = current.copy(token = page.nextToken)
             // Token and outbox are written in one transaction: a crash never loses a change set.
@@ -346,7 +382,7 @@ class SyncEngine(
         do {
             currentCoroutineContext().ensureActive()
             val page = health.readRecords(spec, from, to, token, pageSize)
-            if (page.records.isNotEmpty()) store.commit(recordItems(run, spec, page.records))
+            if (page.records.isNotEmpty()) store.commit(recordItems(run, spec, withRoutes(run, spec, page.records)))
             token = page.nextPageToken
         } while (token != null)
     }
@@ -590,6 +626,7 @@ class SyncEngine(
             counts["routes_queued"] = run.routesQueued
             counts["routes_sent"] = run.routesSent
         }
+        counts.putAll(run.routeStats)
         val errorList = buildList {
             failure?.let { add("failure:${it.name.lowercase()}") }
             run.errors.forEach { (k, v) -> add("$k=$v") }
@@ -609,7 +646,8 @@ class SyncEngine(
                         status = status.name.lowercase(),
                         startedAt = run.startedAt.toString(),
                         finishedAt = finishedAt.toString(),
-                        counts = counts,
+                        // route_* diagnostics stay local: the writer's report schema does not know them
+                        counts = counts.filterKeys { !it.startsWith("route") },
                         errors = run.errors.map { (k, v) ->
                             val code = k.substringBefore(':')
                             ReportError(code = code, type = k.substringAfter(':', "").ifEmpty { null }, count = v)

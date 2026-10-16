@@ -87,7 +87,92 @@ class RouteRefreshTest {
         assertEquals(3, routeOf(postedExercises().single())!!.jsonArray.size)
     }
 
+    @Test
+    fun routesComeOnlyFromASingleRecordReadNeverFromListReads() = runTest {
+        health.granted += HealthTypes.ROUTES_PERMISSION
+        health.seed(exercise("ex-1", day(0), routePoints = 3))
+
+        val listed = health.readRecords(HealthTypes.byId.getValue("ExerciseSession"), day(0).minusSeconds(1), now, null, 10).records.single()
+        assertFalse("the fake mimics HC: no route in list reads", HealthTypes.hasRoute(listed))
+
+        engine().run()
+
+        assertEquals(3, routeOf(postedExercises().single())!!.jsonArray.size)
+    }
+
+    @Test
+    fun aBackgroundReadThatNeedsConsentStillSendsTheWorkoutWithoutRouteAndCountsIt() = runTest {
+        health.granted += HealthTypes.ROUTES_PERMISSION
+        health.routeReadsConsentRequired = true
+        health.seed(exercise("ex-1", day(0), routePoints = 3))
+        health.seed(exercise("ex-2", day(1), routePoints = 3))
+
+        val result = engine().run()
+
+        assertEquals(SyncStatus.COMPLETED, result.status)
+        assertEquals(2, postedExercises().size)
+        assertTrue(postedExercises().all { routeOf(it) == null })
+        assertEquals(2, result.counts["route_consent_required"])
+        assertEquals(2, result.counts["route_src:${app.sbh.reader.fakes.TestRecords.FIT}:consent_required"])
+        assertNull(result.counts["route_data"])
+    }
+
+    @Test
+    fun routeOutcomesAreCountedPerSourceApp() = runTest {
+        health.granted += HealthTypes.ROUTES_PERMISSION
+        health.seed(exercise("fit-1", day(0), routePoints = 3))
+        health.seed(exercise("fit-2", day(1), routePoints = 0))
+        health.seed(exercise("wit-1", day(2), routePoints = 0, pkg = app.sbh.reader.fakes.TestRecords.WITHINGS))
+
+        val result = engine().run()
+
+        val fit = app.sbh.reader.fakes.TestRecords.FIT
+        val withings = app.sbh.reader.fakes.TestRecords.WITHINGS
+        assertEquals(1, result.counts["route_data"])
+        assertEquals(2, result.counts["route_no_data"])
+        assertEquals(1, result.counts["route_src:$fit:data"])
+        assertEquals(1, result.counts["route_src:$fit:no_data"])
+        assertEquals(1, result.counts["route_src:$withings:no_data"])
+        assertTrue("diagnostics are local: not in the writer's report", api.reports.single().counts.keys.none { it.startsWith("route") })
+        assertEquals(result.counts, store.logList.single().counts)
+    }
+
+    @Test
+    fun withoutThePermissionNoSingleReadsAreMadeAndNothingIsCounted() = runTest {
+        health.seed(exercise("ex-1", day(0), routePoints = 3))
+
+        val result = engine().run()
+
+        assertTrue(result.counts.keys.none { it.startsWith("route") })
+    }
+
+    @Test
+    fun aFailedSingleReadSendsTheWorkoutWithoutRouteAndFlagsItAsPartial() = runTest {
+        health.granted += HealthTypes.ROUTES_PERMISSION
+        health.seed(exercise("ex-1", day(0), routePoints = 3))
+        health.failRecordReadFor += "ex-1"
+
+        val result = engine().run()
+
+        assertEquals(SyncStatus.PARTIAL, result.status)
+        assertNull(routeOf(postedExercises().single()))
+        assertTrue(store.logList.single().errors.contains("route_read_failed:ExerciseSession=1"))
+    }
+
     // ---------------------------------------------------------------- refresh
+
+    @Test
+    fun refreshInTheBackgroundDeliversNothingAndReportsConsentRequired() = runTest {
+        health.granted += HealthTypes.ROUTES_PERMISSION
+        health.routeReadsConsentRequired = true
+        health.seed(exercise("ex-1", day(0), routePoints = 3))
+
+        val result = engine().refreshRoutes()
+
+        assertTrue(api.postedBatches.isEmpty())
+        assertEquals(0, result.counts["routes_sent"])
+        assertEquals(1, result.counts["route_consent_required"])
+    }
 
     @Test
     fun refreshSendsOnlyWorkoutsThatNowHaveARoute() = runTest {

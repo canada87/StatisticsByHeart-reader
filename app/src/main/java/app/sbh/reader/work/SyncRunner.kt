@@ -24,7 +24,10 @@ class SyncRunner(
 ) {
     suspend fun run(onProgress: (SyncProgress) -> Unit = {}): SyncResult = track(onProgress) { engine.run(it) }
 
-    /** The resumable "re-download GPS routes" job (see [SyncEngine.refreshRoutes]). */
+    /**
+     * The resumable "re-download GPS routes" job (see [SyncEngine.refreshRoutes]). Run it from the UI while the app is
+     * in the foreground: Health Connect hides other apps' routes from background reads.
+     */
     suspend fun refreshRoutes(onProgress: (SyncProgress) -> Unit = {}): SyncResult =
         track(onProgress) { engine.refreshRoutes(it) }
 

@@ -61,8 +61,9 @@ object TestRecords {
         minutes: Long = 30,
         routePoints: Int? = 0,
         modified: Instant = Instant.parse("2026-09-01T00:00:00Z"),
+        pkg: String = FIT,
     ): ExerciseSessionRecord = exerciseWithRoute(
-        start, start.plusSeconds(minutes * 60), metadata(id, modified), ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
+        start, start.plusSeconds(minutes * 60), metadata(id, modified, pkg), ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
         "Camminata", null, emptyList(), emptyList(), routeResult(start, routePoints),
     )
 

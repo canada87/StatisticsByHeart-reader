@@ -51,7 +51,6 @@ class SyncNotifier(private val context: Context) {
         val text = when (progress?.phase) {
             SyncPhase.BACKFILL -> context.getString(R.string.notif_phase_backfill, progress.recordsDelivered)
             SyncPhase.UPLOADING -> context.getString(R.string.notif_phase_uploading, progress.recordsDelivered)
-            SyncPhase.ROUTES -> context.getString(R.string.notif_phase_routes, progress.recordsDelivered)
             SyncPhase.CHANGES, SyncPhase.AGGREGATES -> context.getString(R.string.notif_phase_changes)
             else -> context.getString(R.string.notif_phase_preparing)
         }

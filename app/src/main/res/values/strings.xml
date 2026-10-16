@@ -254,14 +254,18 @@
     <string name="config_routes_grant">Concedi in Health Connect</string>
     <string name="config_routes_refresh">Riscarica tracce GPS</string>
     <string name="config_routes_resume">Riprendi il riscaricamento</string>
-    <string name="config_routes_running">Riscaricamento in corso… Lo trovi nel Log quando finisce.</string>
+    <string name="config_routes_running">Riscaricamento in corso. Tieni l\'app aperta e lo schermo acceso: Health Connect consegna le tracce solo ad app in primo piano. Se esci, si ferma e puoi riprenderlo.</string>
+    <string name="config_routes_progress">Tracce inviate finora: %1$d</string>
+    <string name="config_routes_stop">Ferma</string>
     <string name="config_routes_interrupted">Riscaricamento interrotto: puoi riprenderlo da dove era arrivato.</string>
     <string name="config_routes_done">Ultimo riscaricamento completato. Il Log riporta quante tracce sono state inviate.</string>
     <string name="config_routes_confirm_title">Riscaricare le tracce GPS?</string>
-    <string name="config_routes_confirm_body">Rilegge gli allenamenti dello storico disponibile e reinvia al server solo quelli che hanno un percorso GPS. Può richiedere tempo e traffico (un percorso pesa anche alcuni MB): prosegue in background con una notifica e si può riprendere se si interrompe.</string>
+    <string name="config_routes_confirm_body">Rilegge gli allenamenti dello storico disponibile e reinvia al server solo quelli che hanno un percorso GPS. Va fatto con l\'app aperta e lo schermo acceso (Health Connect non dà le tracce in background); si può fermare e riprendere. Può richiedere tempo e traffico: un percorso pesa anche alcuni MB.</string>
     <string name="progress_routes">Tracce GPS: %1$d inviate</string>
-    <string name="notif_phase_routes">Tracce GPS · %1$d inviate</string>
+    <string name="log_routes_summary">Tracce: %1$d disponibili · %2$d con consenso richiesto · %3$d senza traccia</string>
+    <string name="log_routes_source">%1$s: %2$d disponibili / %3$d consenso / %4$d senza</string>
     <string name="log_mode_routes">Tracce GPS</string>
     <string name="log_counts_routes">%1$d allenamenti con traccia · %2$d inviati · %3$s</string>
+    <string name="err_route_read_failed">Lettura della traccia di un allenamento non riuscita: inviato senza traccia.</string>
     <string name="err_routes_not_granted">Permesso delle tracce di allenamento non concesso in Health Connect.</string>
 </resources>

@@ -33,5 +33,5 @@ Il passaggio non è reversibile senza un nuovo backfill completo.
 
 ## Altre idee
 
-- ~~Rotte GPS degli allenamenti~~ **fatto in 0.2.0**: permesso `READ_EXERCISE_ROUTES` (concesso a mano nelle impostazioni di Health Connect, non richiedibile in-app), invio della traccia nella sync normale e azione *Riscarica tracce GPS* (Config). Limiti: il consenso per singola sessione (`ExerciseRouteRequestContract`) non è usato; storico limitato alla finestra di Health Connect; revocando il permesso le modifiche successive tornano senza traccia.
+- ~~Rotte GPS degli allenamenti~~ **fatto in 0.2.0, corretto in 0.2.1**: permesso `READ_EXERCISE_ROUTES` (concesso a mano in Health Connect), traccia letta con `readRecord(id)` (la 0.2.0 usava solo `readRecords`, che non la consegna), azione *Riscarica tracce GPS* in primo piano e diagnostica nel Log per esito e app sorgente. Limiti noti: se Google Fit (o un'altra app) non scrive le tracce in Health Connect non c'è nulla da leggere; le letture in background possono dare `ConsentRequired`; il consenso per singola sessione (`ExerciseRouteRequestContract`) non è usato; storico limitato alla finestra di Health Connect.
 - Rilevare l'ora dell'ultima sync riuscita anche lato writer e avvisare dopo 48 h senza sync (Fase 5 della guida).

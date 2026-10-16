@@ -32,11 +32,11 @@ val releaseSigning: Map<String, String>? = when {
 }
 
 // ---- Version ---------------------------------------------------------------------------------------------------
-// versionName comes from the git tag (CI exports SBH_VERSION_NAME=0.2.0 for tag v0.2.0); locally it defaults below.
+// versionName comes from the git tag (CI exports SBH_VERSION_NAME=0.2.1 for tag v0.2.1); locally it defaults below.
 // versionCode = MAJOR*10000 + MINOR*100 + PATCH: strictly increasing for every higher semver, which is exactly what
 // Android needs to accept an update (Obtainium installs over the old app only if versionCode grows).
 // Limits: MINOR and PATCH must be < 100; pre-release suffixes (-rc1) are not supported.
-val sbhVersionName = providers.environmentVariable("SBH_VERSION_NAME").orElse("0.2.0").get().removePrefix("v")
+val sbhVersionName = providers.environmentVariable("SBH_VERSION_NAME").orElse("0.2.1").get().removePrefix("v")
 val semver = Regex("""(\d+)\.(\d+)\.(\d+)""").matchEntire(sbhVersionName)
     ?: throw GradleException("SBH_VERSION_NAME='$sbhVersionName' is not MAJOR.MINOR.PATCH (e.g. 0.1.0)")
 val (vMajor, vMinor, vPatch) = semver.destructured.toList().map { it.toInt() }

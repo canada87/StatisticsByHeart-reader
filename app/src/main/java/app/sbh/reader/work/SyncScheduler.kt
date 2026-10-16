@@ -47,20 +47,6 @@ class SyncScheduler(context: Context) {
         wm.enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
     }
 
-    /** "Riscarica tracce GPS": one job at a time (KEEP), same network constraint as the sync. */
-    fun refreshRoutes(wifiOnly: Boolean) {
-        val request = OneTimeWorkRequestBuilder<RouteRefreshWorker>()
-            .setConstraints(constraints(wifiOnly))
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-        wm.enqueueUniqueWork(ROUTES, ExistingWorkPolicy.KEEP, request)
-    }
-
-    /** True while the routes job is queued or running. */
-    val routesPending: Flow<Boolean> = wm.getWorkInfosForUniqueWorkFlow(ROUTES).map { list ->
-        list.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
-    }
-
     /** True while a "sync now" job is queued or running. */
     val manualPending: Flow<Boolean> = wm.getWorkInfosForUniqueWorkFlow(NOW).map { list ->
         list.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
@@ -69,6 +55,5 @@ class SyncScheduler(context: Context) {
     companion object {
         const val PERIODIC = "sbh-periodic-sync"
         const val NOW = "sbh-sync-now"
-        const val ROUTES = "sbh-routes-refresh"
     }
 }

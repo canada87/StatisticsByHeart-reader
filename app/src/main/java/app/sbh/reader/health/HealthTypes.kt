@@ -59,10 +59,21 @@ object HealthTypes {
     /** Reads every workout route without a per-session consent (declared in the manifest, granted in HC settings). */
     const val ROUTES_PERMISSION = "android.permission.health.READ_EXERCISE_ROUTES"
 
+    /** What Health Connect says about the GPS route of a workout. */
+    enum class RouteOutcome { DATA, CONSENT_REQUIRED, NO_DATA }
+
+    /** Null for anything that is not a workout. An empty route counts as [RouteOutcome.NO_DATA]. */
+    fun routeOutcome(record: Record): RouteOutcome? {
+        val result = (record as? ExerciseSessionRecord)?.exerciseRouteResult ?: return null
+        return when (result) {
+            is ExerciseRouteResult.Data -> if (result.exerciseRoute.route.isNotEmpty()) RouteOutcome.DATA else RouteOutcome.NO_DATA
+            is ExerciseRouteResult.ConsentRequired -> RouteOutcome.CONSENT_REQUIRED
+            else -> RouteOutcome.NO_DATA
+        }
+    }
+
     /** True when [record] is a workout whose GPS route is readable now and not empty. */
-    fun hasRoute(record: Record): Boolean =
-        ((record as? ExerciseSessionRecord)?.exerciseRouteResult as? ExerciseRouteResult.Data)
-            ?.exerciseRoute?.route?.isNotEmpty() == true
+    fun hasRoute(record: Record): Boolean = routeOutcome(record) == RouteOutcome.DATA
 
     val all: List<HealthTypeSpec> = listOf(
         // ---- Tier 1 (MVP) ----

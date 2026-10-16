@@ -15,8 +15,13 @@ import app.sbh.reader.sync.StateUpdate
 import app.sbh.reader.sync.SyncLogEntry
 import app.sbh.reader.sync.SyncStore
 import app.sbh.reader.health.HealthTypes
+import app.sbh.reader.sync.SyncPhase
+import app.sbh.reader.work.SyncRunner
 import app.sbh.reader.work.SyncScheduler
+import app.sbh.reader.work.SyncStatusHolder
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -58,6 +63,8 @@ class ConfigViewModel(
     private val scheduler: SyncScheduler,
     /** Builds an API client for an explicit config, so the connection can be tested before saving. */
     private val apiFor: (ServerConfig) -> SbhApi,
+    private val runner: SyncRunner,
+    holder: SyncStatusHolder,
     private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -71,8 +78,16 @@ class ConfigViewModel(
 
     private val form = MutableStateFlow(Form(tokenSaved = tokens.hasToken()))
 
+    private var routesJob: Job? = null
+    private val routesRunning = MutableStateFlow(false)
+
+    /** Workouts with a route delivered so far by the running GPS job. */
+    val routesSent: StateFlow<Int> = holder.running
+        .map { if (it?.phase == SyncPhase.ROUTES) it.recordsDelivered else 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     val state: StateFlow<ConfigUiState> = combine(
-        settings.settings, form, store.routeRefreshState(), scheduler.routesPending,
+        settings.settings, form, store.routeRefreshState(), routesRunning,
     ) { s, f, routes, routesPending ->
         val url = f.urlInput ?: s.serverUrl
         ConfigUiState(
@@ -180,10 +195,21 @@ class ConfigViewModel(
      * cursor. It never touches the normal sync cursors or the Changes token.
      */
     fun refreshRoutes(restart: Boolean) {
-        viewModelScope.launch {
-            if (restart) store.commit(emptyList(), StateUpdate(routeRefresh = RouteRefreshState()))
-            scheduler.refreshRoutes(settings.current().wifiOnly)
+        if (routesJob?.isActive == true) return
+        routesJob = viewModelScope.launch {
+            routesRunning.value = true
+            try {
+                if (restart) store.commit(emptyList(), StateUpdate(routeRefresh = RouteRefreshState()))
+                runner.refreshRoutes()
+            } finally {
+                routesRunning.value = false
+            }
         }
+    }
+
+    /** Stops the GPS job (button, or the app leaving the foreground). Its cursor is saved: it can be resumed. */
+    fun pauseRoutes() {
+        routesJob?.cancel()
     }
 
     /** Forgets cursors and the Changes token: the next sync re-reads the whole history (idempotent upserts). */

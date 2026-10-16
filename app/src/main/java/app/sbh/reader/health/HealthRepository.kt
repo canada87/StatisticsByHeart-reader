@@ -73,6 +73,12 @@ interface HealthRepository {
         pageSize: Int,
     ): RecordPage
 
+    /**
+     * One record by id. Needed for workout routes: Health Connect hands the GPS route only through this single-record
+     * read (never through [readRecords]), and only while the app is in the foreground for routes of other apps.
+     */
+    suspend fun readRecordById(spec: HealthTypeSpec, id: String): Record
+
     suspend fun createChangesToken(specs: Collection<HealthTypeSpec>): String
 
     suspend fun readChanges(token: String): ChangesPage

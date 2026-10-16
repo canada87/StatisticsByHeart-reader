@@ -65,6 +65,11 @@ class HealthConnectRepository(private val context: Context) : HealthRepository {
         return RecordPage(response.records, response.pageToken)
     }
 
+    override suspend fun readRecordById(spec: HealthTypeSpec, id: String): Record {
+        @Suppress("UNCHECKED_CAST")
+        return client.readRecord(spec.recordClass as KClass<Record>, id).record
+    }
+
     override suspend fun createChangesToken(specs: Collection<HealthTypeSpec>): String =
         client.getChangesToken(ChangesTokenRequest(recordTypes = specs.map { it.recordClass }.toSet()))
 

@@ -44,14 +44,31 @@ class FakeHealthRepository : HealthRepository {
         store.getOrPut(spec.id) { mutableListOf() }.add(record)
     }
 
-    /** What HC would hand out: a workout's route is only readable with READ_EXERCISE_ROUTES, otherwise consent is required. */
-    private fun visible(record: Record): Record {
-        if (record !is ExerciseSessionRecord || HealthTypes.ROUTES_PERMISSION in granted) return record
-        if (record.exerciseRouteResult !is ExerciseRouteResult.Data) return record
+    /** Workout routes are never part of list reads (readRecords / Changes API), only of [readRecordById]. */
+    private fun visible(record: Record): Record = withRoute(record, ExerciseRouteResult.NoData())
+
+    private fun withRoute(record: Record, result: ExerciseRouteResult): Record {
+        if (record !is ExerciseSessionRecord || record.exerciseRouteResult !is ExerciseRouteResult.Data) return record
         return TestRecords.exerciseWithRoute(
             record.startTime, record.endTime, record.metadata, record.exerciseType, record.title, record.notes,
-            record.segments, record.laps, ExerciseRouteResult.ConsentRequired(),
+            record.segments, record.laps, result,
         )
+    }
+
+    /** Simulates a read from the background: Health Connect answers "consent required" even with the permission. */
+    var routeReadsConsentRequired = false
+
+    /** Ids whose single-record read throws. */
+    val failRecordReadFor = mutableSetOf<String>()
+
+    override suspend fun readRecordById(spec: HealthTypeSpec, id: String): Record {
+        if (id in failRecordReadFor) throw IllegalStateException("simulated HC failure")
+        val record = store[spec.id].orEmpty().firstOrNull { it.metadata.id == id } ?: throw NoSuchElementException(id)
+        return if (HealthTypes.ROUTES_PERMISSION !in granted || routeReadsConsentRequired) {
+            withRoute(record, ExerciseRouteResult.ConsentRequired())
+        } else {
+            record
+        }
     }
 
     fun delete(id: String) {
