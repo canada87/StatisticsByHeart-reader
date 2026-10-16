@@ -1,5 +1,8 @@
 package app.sbh.reader.fakes
 
+import androidx.health.connect.client.records.ExerciseRoute
+import androidx.health.connect.client.records.ExerciseRouteResult
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
@@ -48,6 +51,37 @@ object TestRecords {
         bpms.mapIndexed { i, b -> HeartRateRecord.Sample(start.plusSeconds(i * 60L), b) },
         metadata(id),
     )
+
+    /** A workout; [routePoints] > 0 attaches a synthetic route (readable), 0 = no data, null = consent required. */
+    fun exercise(
+        id: String,
+        start: Instant,
+        minutes: Long = 30,
+        routePoints: Int? = 0,
+        modified: Instant = Instant.parse("2026-09-01T00:00:00Z"),
+    ): ExerciseSessionRecord = ExerciseSessionRecord(
+        startTime = start,
+        startZoneOffset = CEST,
+        endTime = start.plusSeconds(minutes * 60),
+        endZoneOffset = CEST,
+        metadata = metadata(id, modified),
+        exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
+        title = "Camminata",
+        exerciseRouteResult = routeResult(start, routePoints),
+    )
+
+    // Points are 1 ms apart so that even the capped 50k-point route stays inside the session (HC validates it).
+    fun routeResult(start: Instant, points: Int?): ExerciseRouteResult = when {
+        points == null -> ExerciseRouteResult.ConsentRequired()
+        points == 0 -> ExerciseRouteResult.NoData()
+        else -> ExerciseRouteResult.Data(
+            ExerciseRoute(
+                List(points) { i ->
+                    ExerciseRoute.Location(time = start.plusMillis(i.toLong()), latitude = 45.0 + i * 1e-6, longitude = 9.0 + i * 1e-6)
+                },
+            ),
+        )
+    }
 
     fun sleep(id: String, start: Instant, end: Instant) = SleepSessionRecord(
         start, CEST, end, CEST, metadata(id), "Notte", null,

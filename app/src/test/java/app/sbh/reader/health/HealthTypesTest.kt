@@ -1,5 +1,6 @@
 package app.sbh.reader.health
 
+import androidx.health.connect.client.permission.HealthPermission
 import app.sbh.reader.fakes.TestRecords
 import app.sbh.reader.fakes.TestRecords.heartRate
 import app.sbh.reader.fakes.TestRecords.sleep
@@ -53,6 +54,43 @@ class HealthTypesTest {
         assertTrue("permissions missing in AndroidManifest.xml: $missing", missing.isEmpty())
         assertTrue("history permission declared", "android.permission.health.READ_HEALTH_DATA_HISTORY" in declared)
         assertTrue("background permission declared", "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" in declared)
+        assertTrue("routes permission declared", HealthTypes.ROUTES_PERMISSION in declared)
+    }
+
+    @Test
+    fun routesPermissionMatchesTheLibraryConstant() {
+        assertEquals(HealthPermission.PERMISSION_READ_EXERCISE_ROUTES, HealthTypes.ROUTES_PERMISSION)
+    }
+
+    // ------------------------------------------------------------ exercise routes
+
+    @Test
+    fun exerciseRouteIsIncludedOnlyWhenReadable() {
+        val spec = HealthTypes.byId.getValue("ExerciseSession")
+
+        val withRoute = spec.map(TestRecords.exercise("ex-1", t0, routePoints = 3))
+        val route = withRoute.data["route"]!!.jsonArray
+        assertEquals(3, route.size)
+        assertEquals(setOf("time", "lat", "lon"), route[0].jsonObject.keys)
+
+        assertNull(spec.map(TestRecords.exercise("ex-2", t0, routePoints = null)).data["route"])
+        assertNull(spec.map(TestRecords.exercise("ex-3", t0, routePoints = 0)).data["route"])
+        assertTrue(HealthTypes.hasRoute(TestRecords.exercise("ex-1", t0, routePoints = 3)))
+        assertTrue(!HealthTypes.hasRoute(TestRecords.exercise("ex-2", t0, routePoints = null)))
+        assertTrue(!HealthTypes.hasRoute(TestRecords.steps("s", t0)))
+    }
+
+    @Test
+    fun routeIsCappedAtTheContractLimit() {
+        val out = HealthTypes.byId.getValue("ExerciseSession")
+            .map(TestRecords.exercise("ex-big", t0, routePoints = HealthTypes.MAX_ROUTE_POINTS + 10))
+        assertEquals(HealthTypes.MAX_ROUTE_POINTS, out.data["route"]!!.jsonArray.size)
+    }
+
+    @Test
+    fun routesGrantedReflectsTheHealthConnectPermission() {
+        assertTrue(!HealthAccessState(granted = setOf("x")).routesGranted)
+        assertTrue(HealthAccessState(granted = setOf(HealthTypes.ROUTES_PERMISSION)).routesGranted)
     }
 
     // ------------------------------------------------------------ mappers (contract §4)

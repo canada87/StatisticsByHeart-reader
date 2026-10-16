@@ -56,6 +56,14 @@ object HealthTypes {
     const val MAX_STAGES = 1_000
     const val MAX_ROUTE_POINTS = 50_000
 
+    /** Reads every workout route without a per-session consent (declared in the manifest, granted in HC settings). */
+    const val ROUTES_PERMISSION = "android.permission.health.READ_EXERCISE_ROUTES"
+
+    /** True when [record] is a workout whose GPS route is readable now and not empty. */
+    fun hasRoute(record: Record): Boolean =
+        ((record as? ExerciseSessionRecord)?.exerciseRouteResult as? ExerciseRouteResult.Data)
+            ?.exerciseRoute?.route?.isNotEmpty() == true
+
     val all: List<HealthTypeSpec> = listOf(
         // ---- Tier 1 (MVP) ----
         spec<StepsRecord>("Steps", 1, RecordShape.INTERVAL, MetricGroup.ACTIVITY, R.string.type_steps, R.drawable.ic_footprints,
@@ -94,8 +102,8 @@ object HealthTypes {
                 put("exercise_type", ExerciseSessionRecord.EXERCISE_TYPE_INT_TO_STRING_MAP[r.exerciseType]?.uppercase() ?: "OTHER_WORKOUT")
                 put("exercise_type_id", r.exerciseType)
                 r.title?.let { put("title", it.take(200)) }
-                // The route needs a per-session consent in HC: only sent when it was granted.
-                (r.exerciseRouteResult as? ExerciseRouteResult.Data)?.exerciseRoute?.let { route ->
+                // The route is readable only with READ_EXERCISE_ROUTES (or a per-session consent): otherwise omitted.
+                (r.exerciseRouteResult as? ExerciseRouteResult.Data)?.exerciseRoute?.takeIf { it.route.isNotEmpty() }?.let { route ->
                     put("route", routeJson(route))
                 }
             }

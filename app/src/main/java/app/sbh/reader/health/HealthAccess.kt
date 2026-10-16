@@ -17,6 +17,9 @@ data class HealthAccessState(
     val historyGranted: Boolean get() = HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY in granted
     val backgroundGranted: Boolean get() = HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND in granted
 
+    /** All GPS routes readable without a per-session consent. Granted only from the Health Connect settings. */
+    val routesGranted: Boolean get() = HealthTypes.ROUTES_PERMISSION in granted
+
     fun isGranted(spec: HealthTypeSpec) = spec.readPermission in granted
     fun isSupported(spec: HealthTypeSpec) = spec.id !in unsupportedTypeIds
 

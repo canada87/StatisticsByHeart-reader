@@ -21,6 +21,11 @@
     -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <!--
+        GPS routes of workouts, all at once. Not requested through the normal permission dialog (HC ignores it there):
+        the user grants it in the Health Connect settings of the app (Config → Tracce GPS).
+    -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES" />
     <!-- Tier 1 -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
